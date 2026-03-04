@@ -107,32 +107,6 @@ async function processKMZ(){
     a.click()
 
     document.getElementById("status").innerText="Selesai ✔"
-<div class="container">
-  <div class="card">
-    <h1>Rename Placemark di KMZ</h1>
-
-    <div class="card-inner">
-      <p class="rules">
-        Aturan: hapus prefix <b>No/No.</b> (case-insensitive). Jika hasilnya angka murni 1–9 → jadi <b>01–09</b>.
-        Jika ada huruf/simbol (mis. <b>4b</b>, <b>7/1b</b>) → tidak mengubah format selain <b>uppercase huruf</b>.
-      </p>
-
-      <div class="row">
-        <div class="filebox">
-          <input id="file" type="file" accept=".kmz" />
-        </div>
-
-        <button id="run" class="primary" disabled>Proses &amp; Buat KMZ Baru</button>
-      </div>
-
-      <div id="status" class="status"></div>
-    </div>
-
-    <div class="footer">
-      <span class="badge">Powered by JSZip</span>
-    </div>
-  </div>
-</div>
 }
 
     
@@ -141,4 +115,5 @@ async function processKMZ(){
 </body>
 
 </html>
+
 
