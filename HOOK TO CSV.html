@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>KMZ → CSV Generator (HOOK)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+    background:#0f172a;
+    font-family:Arial, Helvetica, sans-serif;
+    color:#e2e8f0;
+    display:flex;
+    justify-content:center;
+    padding:40px;
+}
+
+.container{
+    width:900px;
+}
+
+.card{
+    background:#111827;
+    border-radius:12px;
+    padding:25px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.4);
+}
+
+h1{
+    text-align:center;
+    margin-bottom:25px;
+}
+
+.row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+}
+
+input[type=file]{
+    background:#1f2937;
+    border:1px solid #374151;
+    color:#e2e8f0;
+    padding:8px;
+    border-radius:6px;
+}
+
+button{
+    background:#2563eb;
+    border:none;
+    color:white;
+    padding:10px 18px;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+button:hover{
+    background:#1d4ed8;
+}
+
+button:disabled{
+    background:#374151;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th{
+    background:#1f2937;
+}
+
+td,th{
+    border:1px solid #374151;
+    padding:8px;
+}
+
+pre{
+    background:#020617;
+    padding:10px;
+    border-radius:6px;
+    overflow:auto;
+}
+
+.ok{
+    color:#4ade80;
+}
+
+.warn{
+    color:#facc15;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<h1>KMZ → CSV Generator (HOOK)</h1>
+
+<div class="row">
+<input type="file" id="kmzFile" accept=".kmz">
+<button id="btnConvert" disabled>Convert</button>
+<button id="btnDownload" disabled>Download hook.csv</button>
+</div>
+
+<p>Output CSV header: <b>ID,Latitude,Longitude</b> (sesuai HOOK.csv)</p>
+
+<div id="status"></div>
+
+<h3>Preview</h3>
+<table id="previewTable"></table>
+
+<h3>Log</h3>
+<pre id="log"></pre>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<script>
+
+const kmzInput=document.getElementById("kmzFile")
+const btnConvert=document.getElementById("btnConvert")
+const btnDownload=document.getElementById("btnDownload")
+const logEl=document.getElementById("log")
+const preview=document.getElementById("previewTable")
+const status=document.getElementById("status")
+
+let csvText=""
+
+function log(t){logEl.textContent+=t+"\\n"}
+
+function buildCSV(rows){
+  // Excel helper: paksa delimiter koma
+  let csv = "sep=,\r\n";
+  // Header harus persis yang Anda minta
+  csv += "Clamp_Hook_ID,Clamp_Hook_LATITUDE,Clamp_Hook_LONGITUDE\r\n";
+
+  rows.forEach(r => {
+    csv += `${r.ID},${r.Latitude},${r.Longitude}\r\n`;
+  });
+
+  return csv;
+}
+
+function parseKML(kml){
+
+const parser=new DOMParser()
+const xml=parser.parseFromString(kml,"text/xml")
+
+const placemarks=xml.getElementsByTagName("Placemark")
+
+let rows=[]
+
+for(let p of placemarks){
+
+let name=p.getElementsByTagName("name")[0]?.textContent.trim()
+
+if(!name) continue
+
+// cari pola seperti 88R
+let match=name.match(/\d+R/i)
+
+if(!match) continue
+
+let id=match[0].toUpperCase()
+
+let coord=p.getElementsByTagName("coordinates")[0]?.textContent.trim()
+
+if(!coord) continue
+
+let parts=coord.split(",")
+
+let lon=parts[0]
+let lat=parts[1]
+
+rows.push({
+ID:id,
+Latitude:lat,
+Longitude:lon
+})
+
+}
+
+return rows
+}
+
+function renderPreview(rows){
+
+preview.innerHTML=""
+
+preview.innerHTML=`
+<tr>
+<th>ID</th>
+<th>Latitude</th>
+<th>Longitude</th>
+</tr>
+`
+
+rows.slice(0,10).forEach(r=>{
+
+preview.innerHTML+=`
+<tr>
+<td>${r.ID}</td>
+<td>${r.Latitude}</td>
+<td>${r.Longitude}</td>
+</tr>
+`
+
+})
+
+}
+
+kmzInput.onchange=()=>{
+btnConvert.disabled=false
+}
+
+btnConvert.onclick=async()=>{
+
+logEl.textContent=""
+
+const file=kmzInput.files[0]
+
+log("Reading KMZ...")
+
+const buffer=await file.arrayBuffer()
+
+const zip=await JSZip.loadAsync(buffer)
+
+let kmlFile=zip.file("doc.kml")
+
+if(!kmlFile){
+
+const kmlName=Object.keys(zip.files).find(f=>f.endsWith(".kml"))
+
+kmlFile=zip.file(kmlName)
+
+}
+
+const kml=await kmlFile.async("text")
+
+log("KML extracted")
+
+const rows=parseKML(kml)
+
+log("Hook points found: "+rows.length)
+
+csvText=buildCSV(rows)
+
+renderPreview(rows)
+
+btnDownload.disabled=false
+
+status.innerHTML=`<p class="ok">Success: ${rows.length} hook points</p>`
+
+}
+
+btnDownload.onclick=()=>{
+
+const blob=new Blob(["\ufeff"+csvText],{type:"text/csv"})
+
+const url=URL.createObjectURL(blob)
+
+const a=document.createElement("a")
+a.href=url
+a.download="hook.csv"
+a.click()
+
+URL.revokeObjectURL(url)
+
+}
+
+</script>
+
+</body>
+</html>
