@@ -141,18 +141,15 @@ let csvText=""
 function log(t){logEl.textContent+=t+"\\n"}
 
 function buildCSV(rows){
-  // Excel helper: paksa delimiter koma
-  let csv = "sep=,\r\n";
-  // Header harus persis yang Anda minta
-  csv += "Clamp_Hook_ID,Clamp_Hook_LATITUDE,Clamp_Hook_LONGITUDE\r\n";
 
-  rows.forEach(r => {
-    csv += `${r.ID},${r.Latitude},${r.Longitude}\r\n`;
-  });
+let csv="Clamp_Hook_ID,Clamp_Hook_LATITUDE,Clamp_Hook_LONGITUDE\n"
 
-  return csv;
+rows.forEach(r=>{
+csv+=`${r.ID},${r.Latitude},${r.Longitude}\n`
+})
+
+return csv
 }
-
 function parseKML(kml){
 
 const parser=new DOMParser()
@@ -284,3 +281,4 @@ URL.revokeObjectURL(url)
 
 </body>
 </html>
+
