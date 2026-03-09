@@ -142,10 +142,10 @@ function log(t){logEl.textContent+=t+"\\n"}
 
 function buildCSV(rows){
 
-let csv="Clamp_Hook_ID,Clamp_Hook_LATITUDE,Clamp_Hook_LONGITUDE\n"
+let csv="Clamp_Hook_ID;Clamp_Hook_LATITUDE;Clamp_Hook_LONGITUDE\n"
 
 rows.forEach(r=>{
-csv+=`${r.ID},${r.Latitude},${r.Longitude}\n`
+csv+=`${r.ID};${r.Latitude};${r.Longitude}\n`
 })
 
 return csv
@@ -281,4 +281,5 @@ URL.revokeObjectURL(url)
 
 </body>
 </html>
+
 
