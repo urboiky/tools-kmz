@@ -2,11 +2,10 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>KMZ → CSV Generator (HOOK)</title>
+<title>KMZ → CSV Generator (HOOK Update)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-
 body{
     background:#0f172a;
     font-family:Arial, Helvetica, sans-serif;
@@ -15,30 +14,25 @@ body{
     justify-content:center;
     padding:40px;
 }
-
 .container{
     width:900px;
 }
-
 .card{
     background:#111827;
     border-radius:12px;
     padding:25px;
     box-shadow:0 10px 30px rgba(0,0,0,0.4);
 }
-
 h1{
     text-align:center;
     margin-bottom:25px;
 }
-
 .row{
     display:flex;
     gap:10px;
     flex-wrap:wrap;
     margin-bottom:20px;
 }
-
 input[type=file]{
     background:#1f2937;
     border:1px solid #374151;
@@ -46,7 +40,6 @@ input[type=file]{
     padding:8px;
     border-radius:6px;
 }
-
 button{
     background:#2563eb;
     border:none;
@@ -56,63 +49,49 @@ button{
     cursor:pointer;
     font-weight:bold;
 }
-
 button:hover{
     background:#1d4ed8;
 }
-
 button:disabled{
     background:#374151;
 }
-
 table{
     width:100%;
     border-collapse:collapse;
     margin-top:15px;
 }
-
 th{
     background:#1f2937;
 }
-
 td,th{
     border:1px solid #374151;
     padding:8px;
 }
-
 pre{
     background:#020617;
     padding:10px;
     border-radius:6px;
     overflow:auto;
 }
-
-.ok{
-    color:#4ade80;
-}
-
-.warn{
-    color:#facc15;
-}
-
+.ok{ color:#4ade80; }
+.warn{ color:#facc15; }
+.err{ color:#f87171; }
 </style>
 </head>
 
 <body>
-
 <div class="container">
-
 <div class="card">
 
 <h1>KMZ → CSV Generator (HOOK)</h1>
 
 <div class="row">
-<input type="file" id="kmzFile" accept=".kmz">
-<button id="btnConvert" disabled>Convert</button>
-<button id="btnDownload" disabled>Download hook.csv</button>
+    <input type="file" id="kmzFile" accept=".kmz">
+    <button id="btnConvert" disabled>Convert</button>
+    <button id="btnDownload" disabled>Download hook.csv</button>
 </div>
 
-<p>Output CSV header: <b>ID,Latitude,Longitude</b> (sesuai HOOK.csv)</p>
+<p>Output CSV header: <b>Clamp_Hook_ID,Clamp_Hook_LATITUDE,Clamp_Hook_LONGITUDE</b></p>
 
 <div id="status"></div>
 
@@ -128,158 +107,206 @@ pre{
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <script>
+const kmzInput = document.getElementById("kmzFile");
+const btnConvert = document.getElementById("btnConvert");
+const btnDownload = document.getElementById("btnDownload");
+const logEl = document.getElementById("log");
+const preview = document.getElementById("previewTable");
+const status = document.getElementById("status");
 
-const kmzInput=document.getElementById("kmzFile")
-const btnConvert=document.getElementById("btnConvert")
-const btnDownload=document.getElementById("btnDownload")
-const logEl=document.getElementById("log")
-const preview=document.getElementById("previewTable")
-const status=document.getElementById("status")
+let csvText = "";
 
-let csvText=""
+function log(t){
+    logEl.textContent += t + "\n";
+}
 
-function log(t){logEl.textContent+=t+"\\n"}
+function normalizeNumber(value){
+    if(value == null) return "";
+    let v = String(value).trim();
+
+    // ganti koma desimal jadi titik kalau ada
+    v = v.replace(",", ".");
+
+    const n = Number(v);
+    if (Number.isNaN(n)) return "";
+
+    // hindari scientific notation aneh
+    return n.toString();
+}
+
+function escapeCSV(value){
+    const s = String(value ?? "").trim();
+    if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+        return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+}
 
 function buildCSV(rows){
+    const lines = [];
+    lines.push("Clamp_Hook_ID,Clamp_Hook_LATITUDE,Clamp_Hook_LONGITUDE");
 
-let csv="Clamp_Hook_ID;Clamp_Hook_LATITUDE;Clamp_Hook_LONGITUDE\n"
+    rows.forEach(r => {
+        lines.push([
+            escapeCSV(r.ID),
+            escapeCSV(r.Latitude),
+            escapeCSV(r.Longitude)
+        ].join(","));
+    });
 
-rows.forEach(r=>{
-csv+=`${r.ID};${r.Latitude};${r.Longitude}\n`
-})
-
-return csv
+    return lines.join("\r\n");
 }
+
 function parseKML(kml){
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(kml, "text/xml");
 
-const parser=new DOMParser()
-const xml=parser.parseFromString(kml,"text/xml")
+    const parseError = xml.getElementsByTagName("parsererror");
+    if (parseError.length > 0) {
+        throw new Error("KML tidak valid / gagal diparse");
+    }
 
-const placemarks=xml.getElementsByTagName("Placemark")
+    const placemarks = xml.getElementsByTagName("Placemark");
+    const rows = [];
 
-let rows=[]
+    for (const p of placemarks) {
+        const name = p.getElementsByTagName("name")[0]?.textContent?.trim();
+        if (!name) continue;
 
-for(let p of placemarks){
+        // cari pola seperti 88R
+        const match = name.match(/\b\d+R\b/i);
+        if (!match) continue;
 
-let name=p.getElementsByTagName("name")[0]?.textContent.trim()
+        const id = match[0].toUpperCase();
 
-if(!name) continue
+        const coordText = p.getElementsByTagName("coordinates")[0]?.textContent?.trim();
+        if (!coordText) continue;
 
-// cari pola seperti 88R
-let match=name.match(/\d+R/i)
+        // ambil koordinat pertama saja: lon,lat[,alt]
+        const firstCoord = coordText.split(/\s+/)[0];
+        const parts = firstCoord.split(",");
 
-if(!match) continue
+        if (parts.length < 2) continue;
 
-let id=match[0].toUpperCase()
+        const lon = normalizeNumber(parts[0]);
+        const lat = normalizeNumber(parts[1]);
 
-let coord=p.getElementsByTagName("coordinates")[0]?.textContent.trim()
+        if (!lat || !lon) continue;
 
-if(!coord) continue
+        rows.push({
+            ID: id,
+            Latitude: lat,
+            Longitude: lon
+        });
+    }
 
-let parts=coord.split(",")
-
-let lon=parts[0]
-let lat=parts[1]
-
-rows.push({
-ID:id,
-Latitude:lat,
-Longitude:lon
-})
-
-}
-
-return rows
+    return rows;
 }
 
 function renderPreview(rows){
+    preview.innerHTML = `
+        <tr>
+            <th>Clamp_Hook_ID</th>
+            <th>Clamp_Hook_LATITUDE</th>
+            <th>Clamp_Hook_LONGITUDE</th>
+        </tr>
+    `;
 
-preview.innerHTML=""
-
-preview.innerHTML=`
-<tr>
-<th>ID</th>
-<th>Latitude</th>
-<th>Longitude</th>
-</tr>
-`
-
-rows.slice(0,10).forEach(r=>{
-
-preview.innerHTML+=`
-<tr>
-<td>${r.ID}</td>
-<td>${r.Latitude}</td>
-<td>${r.Longitude}</td>
-</tr>
-`
-
-})
-
+    rows.slice(0, 10).forEach(r => {
+        preview.innerHTML += `
+            <tr>
+                <td>${r.ID}</td>
+                <td>${r.Latitude}</td>
+                <td>${r.Longitude}</td>
+            </tr>
+        `;
+    });
 }
 
-kmzInput.onchange=()=>{
-btnConvert.disabled=false
-}
+kmzInput.onchange = () => {
+    btnConvert.disabled = !kmzInput.files.length;
+    btnDownload.disabled = true;
+    csvText = "";
+    preview.innerHTML = "";
+    status.innerHTML = "";
+    logEl.textContent = "";
+};
 
-btnConvert.onclick=async()=>{
+btnConvert.onclick = async () => {
+    try {
+        logEl.textContent = "";
+        preview.innerHTML = "";
+        status.innerHTML = "";
+        btnDownload.disabled = true;
+        csvText = "";
 
-logEl.textContent=""
+        const file = kmzInput.files[0];
+        if (!file) {
+            status.innerHTML = `<p class="err">Pilih file KMZ dulu.</p>`;
+            return;
+        }
 
-const file=kmzInput.files[0]
+        log("Reading KMZ...");
+        const buffer = await file.arrayBuffer();
 
-log("Reading KMZ...")
+        log("Opening ZIP...");
+        const zip = await JSZip.loadAsync(buffer);
 
-const buffer=await file.arrayBuffer()
+        let kmlFile = zip.file("doc.kml");
 
-const zip=await JSZip.loadAsync(buffer)
+        if (!kmlFile) {
+            const kmlName = Object.keys(zip.files).find(f => f.toLowerCase().endsWith(".kml"));
+            if (!kmlName) {
+                throw new Error("File KML di dalam KMZ tidak ditemukan");
+            }
+            kmlFile = zip.file(kmlName);
+        }
 
-let kmlFile=zip.file("doc.kml")
+        log("Extracting KML...");
+        const kml = await kmlFile.async("text");
 
-if(!kmlFile){
+        log("Parsing placemarks...");
+        const rows = parseKML(kml);
 
-const kmlName=Object.keys(zip.files).find(f=>f.endsWith(".kml"))
+        if (!rows.length) {
+            status.innerHTML = `<p class="warn">Tidak ada titik HOOK yang cocok ditemukan.</p>`;
+            log("No valid HOOK points found");
+            return;
+        }
 
-kmlFile=zip.file(kmlName)
+        log("Hook points found: " + rows.length);
 
-}
+        csvText = buildCSV(rows);
+        renderPreview(rows);
 
-const kml=await kmlFile.async("text")
+        btnDownload.disabled = false;
+        status.innerHTML = `<p class="ok">Success: ${rows.length} hook points siap di-download.</p>`;
+        log("CSV built with comma separator");
+        log("Header: Clamp_Hook_ID,Clamp_Hook_LATITUDE,Clamp_Hook_LONGITUDE");
+    } catch (err) {
+        console.error(err);
+        status.innerHTML = `<p class="err">Error: ${err.message}</p>`;
+        log("ERROR: " + err.message);
+    }
+};
 
-log("KML extracted")
+btnDownload.onclick = () => {
+    if (!csvText) return;
 
-const rows=parseKML(kml)
+    // UTF-8 tanpa BOM
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
 
-log("Hook points found: "+rows.length)
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "hook.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 
-csvText=buildCSV(rows)
-
-renderPreview(rows)
-
-btnDownload.disabled=false
-
-status.innerHTML=`<p class="ok">Success: ${rows.length} hook points</p>`
-
-}
-
-btnDownload.onclick=()=>{
-
-const blob=new Blob(["\ufeff"+csvText],{type:"text/csv"})
-
-const url=URL.createObjectURL(blob)
-
-const a=document.createElement("a")
-a.href=url
-a.download="hook.csv"
-a.click()
-
-URL.revokeObjectURL(url)
-
-}
-
+    URL.revokeObjectURL(url);
+};
 </script>
 
 </body>
 </html>
-
-
