@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Master Pop Up Generator - Template Safe Mode</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #eef4fb;
+      --card: #ffffff;
+      --line: #d8e3f1;
+      --text: #17324d;
+      --muted: #68819c;
+      --primary: #2f7de1;
+      --primary-2: #58a7ff;
+      --shadow: 0 14px 40px rgba(34, 78, 128, 0.14);
+      --radius-xl: 22px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(114, 176, 255, 0.22), transparent 24%),
+        linear-gradient(180deg, #f5f9ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 34px 18px;
+    }
+
+    .shell {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #1d64ce 0%, #67b2ff 100%);
+      color: #fff;
+      border-radius: 28px 28px 0 0;
+      padding: 28px 30px 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 38px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      margin: 10px 0 0;
+      max-width: 760px;
+      color: rgba(255,255,255,0.92);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid rgba(216, 227, 241, 0.85);
+      border-top: 0;
+      border-radius: 0 0 28px 28px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .uploader-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .upload-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+      min-height: 152px;
+    }
+
+    .upload-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 22px;
+    }
+
+    .upload-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      background: #e9f2ff;
+    }
+
+    .upload-card p {
+      margin: 0 0 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+      min-height: 38px;
+    }
+
+    .file-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      border-radius: 12px;
+      border: 1px solid #a8c7ef;
+      background: linear-gradient(180deg, #fbfdff 0%, #eef6ff 100%);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+      user-select: none;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .file-label:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(47, 125, 225, 0.14);
+      border-color: #73abef;
+    }
+
+    .file-label input { display: none; }
+
+    .file-name {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-word;
+      min-height: 18px;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 14px;
+    }
+
+    .form-card,
+    .info-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      padding: 16px;
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .field input {
+      width: 100%;
+      border: 1px solid #c8d9ee;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .field input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(47, 125, 225, 0.12);
+    }
+
+    .tips {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .tips li + li { margin-top: 8px; }
+
+    .status-bar {
+      margin-top: 14px;
+      display: flex;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .status-box {
+      flex: 1;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: #fbfdff;
+      padding: 14px 16px;
+      min-height: 62px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      color: #2e4966;
+    }
+
+    .action-box {
+      width: 280px;
+      display: flex;
+      align-items: stretch;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, #2f7de1 0%, #5eb0ff 100%);
+      cursor: pointer;
+      box-shadow: 0 14px 30px rgba(47, 125, 225, 0.28);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 32px rgba(47, 125, 225, 0.34);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .mini-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px;
+      background: #edf6ff;
+      color: #2564a8;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .uploader-grid,
+      .content-grid,
+      .fields,
+      .status-bar {
+        grid-template-columns: 1fr;
+        display: grid;
+      }
+
+      .action-box { width: 100%; }
+      .hero h1 { font-size: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="hero">
+      <h1>Master Pop Up Generator</h1>
+      <p>
+        Upload database, KMZ opsional, dan template Master Pop kamu. File output akan ditulis aman ke sheet <b>Master Data</b>
+        dengan mode yang lebih aman supaya rumus dan struktur workbook template tetap terjaga.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="uploader-grid">
+        <div class="upload-card">
+          <div class="upload-title"><span class="upload-icon">📗</span>Upload Database</div>
+          <p>Masukkan file database utama Excel yang biasa dipakai di web lama.</p>
+          <label class="file-label">Choose File<input type="file" id="dbFile" accept=".xlsx,.xls"></label>
+          <div class="file-name" id="dbFileName">No file chosen</div>
+        </div>
+
+        <div class="upload-card">
+          <div class="upload-title"><span class="upload-icon">🗺️</span>Upload KMZ File</div>
+          <p>Opsional. Dipakai untuk mapping kolom <b>LINE</b> dari file KMZ/KML.</p>
+          <label class="file-label">Choose File<input type="file" id="kmzFile" accept=".kmz"></label>
+          <div class="file-name" id="kmzFileName">No file chosen</div>
+        </div>
+
+        <div class="upload-card">
+          <div class="upload-title"><span class="upload-icon">📘</span>Template Master Pop</div>
+          <p>Wajib. Hasil generate akan ditulis ke sheet <b>Master Data</b> template ini.</p>
+          <label class="file-label">Choose File<input type="file" id="templateFile" accept=".xlsx,.xlsm"></label>
+          <div class="file-name" id="templateFileName">No file chosen</div>
+        </div>
+      </div>
+
+      <div class="content-grid">
+        <div class="form-card">
+          <div class="mini-badge">⚡ Safe Template Mode</div>
+          <h2 class="section-title">Input Area</h2>
+          <div class="fields">
+            <div class="field full">
+              <label for="area">Nama Area</label>
+              <input id="area" placeholder="Contoh: Karang Nanas">
+            </div>
+            <div class="field">
+              <label for="district">District</label>
+              <input id="district" placeholder="District">
+            </div>
+            <div class="field">
+              <label for="subdistrict">Sub District</label>
+              <input id="subdistrict" placeholder="Sub District">
+            </div>
+            <div class="field">
+              <label for="postcode">Post Code</label>
+              <input id="postcode" placeholder="Post Code">
+            </div>
+            <div class="field">
+              <label for="fdt">FDT Code</label>
+              <input id="fdt" placeholder="FDT Code">
+            </div>
+            <div class="field full">
+              <label for="idarea">ID Area</label>
+              <input id="idarea" placeholder="ID Area">
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h2 class="section-title">Catatan</h2>
+          <ul class="tips">
+            <li>Yang diisi hanya sheet <b>Master Data</b>.</li>
+            <li>KMZ boleh kosong bila tidak perlu isi kolom <b>LINE</b>.</li>
+            <li>Mode ini mengedit isi sheet target langsung di dalam file template, bukan membuat workbook baru.</li>
+            <li>Kalau template punya rumus di kolom lain, struktur workbook akan dipertahankan sebisa mungkin.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-box" id="status">Siap.</div>
+        <div class="action-box">
+          <button id="generateBtn">Generate Master Pop Up</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TEMPLATE_SHEET_NAME = 'Master Data';
+    const START_ROW = 2;
+    const START_COL_INDEX = 2; // B
+    const OUTPUT_COLS = 37;
+    const OUTPUT_LAST_COL_INDEX = START_COL_INDEX + OUTPUT_COLS - 1; // AL
+
+    const el = {
+      dbFile: document.getElementById('dbFile'),
+      kmzFile: document.getElementById('kmzFile'),
+      templateFile: document.getElementById('templateFile'),
+      dbFileName: document.getElementById('dbFileName'),
+      kmzFileName: document.getElementById('kmzFileName'),
+      templateFileName: document.getElementById('templateFileName'),
+      area: document.getElementById('area'),
+      district: document.getElementById('district'),
+      subdistrict: document.getElementById('subdistrict'),
+      postcode: document.getElementById('postcode'),
+      fdt: document.getElementById('fdt'),
+      idarea: document.getElementById('idarea'),
+      generateBtn: document.getElementById('generateBtn'),
+      status: document.getElementById('status')
+    };
+
+    function setStatus(msg) {
+      el.status.textContent = msg;
+      console.log(msg);
+    }
+
+    function bindFileName(inputEl, targetEl) {
+      inputEl.addEventListener('change', () => {
+        targetEl.textContent = inputEl.files[0] ? inputEl.files[0].name : 'No file chosen';
+      });
+    }
+
+    bindFileName(el.dbFile, el.dbFileName);
+    bindFileName(el.kmzFile, el.kmzFileName);
+    bindFileName(el.templateFile, el.templateFileName);
+
+    const normalize = v => String(v ?? '').trim().toUpperCase();
+
+    function safeNumber(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function getValue(obj, keys) {
+      for (const k of keys) {
+        if (obj && Object.prototype.hasOwnProperty.call(obj, k)) return obj[k];
+      }
+      return '';
+    }
+
+    function getLatLon(x, y) {
+      const X = safeNumber(x);
+      const Y = safeNumber(y);
+      if (!Number.isFinite(X) || !Number.isFinite(Y)) return { lat: '', lon: '' };
+      if (Math.abs(X) <= 90 && Math.abs(Y) > 90) return { lat: X, lon: Y };
+      if (Math.abs(Y) <= 90 && Math.abs(X) > 90) return { lat: Y, lon: X };
+      return { lat: X, lon: Y };
+    }
+
+    function coordKey(lat, lon, d = 6) {
+      const latN = Number(lat);
+      const lonN = Number(lon);
+      if (!Number.isFinite(latN) || !Number.isFinite(lonN)) return '';
+      return `${latN.toFixed(d)},${lonN.toFixed(d)}`;
+    }
+
+    function filterOnlyLine(text) {
+      if (!text) return '';
+      return String(text)
+        .split(',')
+        .map(s => s.trim().toUpperCase())
+        .filter(s => /^LINE\s+[A-Z0-9]+$/.test(s))
+        .join(',');
+    }
+
+    const M_LAT = 111320;
+    const mLon = lat => 111320 * Math.cos((lat * Math.PI) / 180);
+
+    function distPointSeg(p, a, b) {
+      const px = p.lon * mLon(p.lat), py = p.lat * M_LAT;
+      const ax = a.lon * mLon(a.lat), ay = a.lat * M_LAT;
+      const bx = b.lon * mLon(b.lat), by = b.lat * M_LAT;
+
+      const vx = bx - ax;
+      const vy = by - ay;
+      const wx = px - ax;
+      const wy = py - ay;
+
+      const c1 = vx * wx + vy * wy;
+      if (c1 <= 0) return Math.hypot(px - ax, py - ay);
+
+      const c2 = vx * vx + vy * vy;
+      if (c2 <= c1) return Math.hypot(px - bx, py - by);
+
+      const t = c1 / c2;
+      return Math.hypot(px - (ax + t * vx), py - (ay + t * vy));
+    }
+
+    async function parseKMZ(file) {
+      if (!file) return [];
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const kmlEntry = Object.values(zip.files).find(f => /\.kml$/i.test(f.name));
+      if (!kmlEntry) throw new Error('File KMZ tidak mengandung file KML.');
+
+      const txt = await kmlEntry.async('text');
+      const xml = new DOMParser().parseFromString(txt, 'text/xml');
+      if (xml.querySelector('parsererror')) throw new Error('Gagal membaca isi KML dari KMZ.');
+
+      const segs = [];
+      const placemarks = [...xml.getElementsByTagName('Placemark')];
+      placemarks.forEach(p => {
+        const name = p.getElementsByTagName('name')[0]?.textContent?.trim();
+        const coordNode = p.getElementsByTagName('coordinates')[0];
+        const coordText = coordNode?.textContent?.trim();
+        if (!name || !coordText) return;
+
+        const pts = coordText.split(/\s+/).map(s => {
+          const [lon, lat] = s.split(',').map(Number);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+          return { lat, lon };
+        }).filter(Boolean);
+
+        for (let i = 0; i < pts.length - 1; i++) {
+          segs.push({ name, a: pts[i], b: pts[i + 1] });
+        }
+      });
+      return segs;
+    }
+
+    async function readWorkbookRows(file) {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      if (!wb.SheetNames?.length) throw new Error('Workbook database tidak memiliki sheet.');
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      if (!sheet) throw new Error('Sheet pertama database tidak ditemukan.');
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      if (!Array.isArray(rows) || rows.length === 0) throw new Error('Data pada sheet pertama kosong.');
+      return rows;
+    }
+
+    function buildOutputRows(rows, areaInput, segs) {
+      let rHome = 1;
+      let rPole = 1;
+      const outRows = [];
+
+      const ensureRow = idx => {
+        if (!outRows[idx]) outRows[idx] = new Array(OUTPUT_COLS).fill('');
+        return outRows[idx];
+      };
+
+      const setOut = (rowIndex1Based, colIndex0Based, value) => {
+        const row = ensureRow(rowIndex1Based - 1);
+        row[colIndex0Based] = value ?? '';
+      };
+
+      const hookMap = {};
+      rows.forEach(r => {
+        const folderPath = normalize(getValue(r, ['FolderPath', 'FOLDERPATH', 'folderpath']));
+        if (!folderPath.includes('/HOOK')) return;
+        const name = normalize(getValue(r, ['Name', 'NAME', 'name']));
+        if (!name) return;
+        hookMap[name] = getLatLon(getValue(r, ['X', 'x']), getValue(r, ['Y', 'y']));
+      });
+
+      const netByCoord = {};
+      rows.forEach(r => {
+        const folderPath = normalize(getValue(r, ['FolderPath', 'FOLDERPATH', 'folderpath']));
+        if (!folderPath.includes('/FAT') && !folderPath.includes('/FDT')) return;
+        const c = getLatLon(getValue(r, ['X', 'x']), getValue(r, ['Y', 'y']));
+        const k = coordKey(c.lat, c.lon);
+        if (!k) return;
+        netByCoord[k] = getValue(r, ['Name', 'NAME', 'name']) || '';
+      });
+
+      rows.forEach(r => {
+        const folderPath = String(getValue(r, ['FolderPath', 'FOLDERPATH', 'folderpath']) || '').toUpperCase();
+        if (!folderPath.includes('/HOME') && !folderPath.includes('/HOME-BIZ')) return;
+
+        const raw = String(getValue(r, ['Name', 'NAME', 'name']) || '').trim();
+        let block = '-';
+        let house = raw || '-';
+        const m = raw.match(/^([A-Za-z])(\d+)$/);
+        if (m) {
+          block = m[1];
+          house = m[2].padStart(2, '0');
+        }
+
+        const c = getLatLon(getValue(r, ['X', 'x']), getValue(r, ['Y', 'y']));
+        const claimHook = getValue(r, ['CLAIM_HOOK', 'Claim_Hook', 'claim_hook']);
+        const hookCoord = hookMap[normalize(claimHook)] || { lat: '', lon: '' };
+
+        setOut(rHome, 0, '-');
+        setOut(rHome, 1, areaInput.area);
+        setOut(rHome, 2, 'JL.');
+        setOut(rHome, 3, getValue(r, ['JALAN', 'Jalan', 'jalan']) || '-');
+        setOut(rHome, 4, house);
+        setOut(rHome, 5, block);
+        setOut(rHome, 6, '-');
+        setOut(rHome, 7, '-');
+        setOut(rHome, 8, '-');
+        setOut(rHome, 9, areaInput.district);
+        setOut(rHome, 10, areaInput.subdistrict);
+        setOut(rHome, 11, areaInput.fdt);
+        setOut(rHome, 12, getValue(r, ['FAT', 'Fat', 'fat']) || '-');
+        setOut(rHome, 13, c.lat);
+        setOut(rHome, 14, c.lon);
+        setOut(rHome, 15, '');
+        setOut(rHome, 16, areaInput.postcode);
+        setOut(rHome, 17, '');
+        setOut(rHome, 18, 'O');
+        setOut(rHome, 19, 'NEED SURVEY');
+        setOut(rHome, 20, '-');
+        setOut(rHome, 21, '-');
+        setOut(rHome, 22, '-');
+        setOut(rHome, 23, '-');
+        setOut(rHome, 24, areaInput.idarea);
+        setOut(rHome, 25, claimHook || '-');
+        setOut(rHome, 26, 'FAT EXT');
+        setOut(rHome, 27, 'YES');
+        setOut(rHome, 35, hookCoord.lat);
+        setOut(rHome, 36, hookCoord.lon);
+        rHome++;
+      });
+
+      const poleMap = {};
+      rows.forEach(r => {
+        const folderPath = normalize(getValue(r, ['FolderPath', 'FOLDERPATH', 'folderpath']));
+        if (!folderPath.includes('/POLE')) return;
+        const name = String(getValue(r, ['Name', 'NAME', 'name']) || '').trim();
+        if (!name) return;
+        if (!poleMap[name]) {
+          poleMap[name] = {
+            name,
+            coord: getLatLon(getValue(r, ['X', 'x']), getValue(r, ['Y', 'y']))
+          };
+        }
+      });
+
+      const TOL = 1.5;
+      Object.values(poleMap)
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+        .forEach(p => {
+          const found = new Set();
+          if (segs.length > 0 && Number.isFinite(Number(p.coord.lat)) && Number.isFinite(Number(p.coord.lon))) {
+            segs.forEach(s => {
+              const d = distPointSeg(p.coord, s.a, s.b);
+              if (d <= TOL) found.add(s.name);
+            });
+          }
+
+          const line = filterOnlyLine([...found].join(','));
+          const k = coordKey(p.coord.lat, p.coord.lon);
+          const net = k && netByCoord[k] ? netByCoord[k] : '';
+
+          setOut(rPole, 28, p.name);
+          setOut(rPole, 29, p.coord.lat);
+          setOut(rPole, 30, p.coord.lon);
+          setOut(rPole, 31, 'LN (Existing)');
+          setOut(rPole, 32, 'Pole 7/250');
+          setOut(rPole, 33, line);
+          setOut(rPole, 34, net);
+          rPole++;
+        });
+
+      return {
+        rows: outRows.map(r => r || new Array(OUTPUT_COLS).fill('')),
+        homeCount: rHome - 1,
+        poleCount: rPole - 1
+      };
+    }
+
+    function colToLetter(col) {
+      let s = '';
+      let n = col;
+      while (n > 0) {
+        const m = (n - 1) % 26;
+        s = String.fromCharCode(65 + m) + s;
+        n = Math.floor((n - 1) / 26);
+      }
+      return s;
+    }
+
+    function letterToCol(letters) {
+      let n = 0;
+      for (const ch of letters.toUpperCase()) n = n * 26 + (ch.charCodeAt(0) - 64);
+      return n;
+    }
+
+    function cellRef(col, row) {
+      return `${colToLetter(col)}${row}`;
+    }
+
+    function parseCellRef(ref) {
+      const m = /^([A-Z]+)(\d+)$/i.exec(ref || '');
+      if (!m) return null;
+      return { col: letterToCol(m[1]), row: Number(m[2]) };
+    }
+
+    function escapeXml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
+    function getOrCreateChildNS(doc, parent, ns, name) {
+      const existing = [...parent.childNodes].find(n => n.nodeType === 1 && n.localName === name);
+      if (existing) return existing;
+      const node = doc.createElementNS(ns, name);
+      parent.appendChild(node);
+      return node;
+    }
+
+    function sortRowCells(rowNode) {
+      const cells = [...rowNode.childNodes].filter(n => n.nodeType === 1 && n.localName === 'c');
+      cells.sort((a, b) => {
+        const pa = parseCellRef(a.getAttribute('r'))?.col || 0;
+        const pb = parseCellRef(b.getAttribute('r'))?.col || 0;
+        return pa - pb;
+      });
+      cells.forEach(c => rowNode.appendChild(c));
+    }
+
+    function retargetFormulaText(formula, oldRow, newRow) {
+      if (!formula || oldRow === newRow) return formula || '';
+      return formula.replace(/(\$?[A-Z]{1,3})(\$?)(\d+)/g, (m, col, absMark, rowDigits) => {
+        if (absMark === '$') return m;
+        if (Number(rowDigits) !== oldRow) return m;
+        return `${col}${absMark}${newRow}`;
+      });
+    }
+
+    function updateCellForRow(cellNode, rowNum, oldRowNum) {
+      const ref = parseCellRef(cellNode.getAttribute('r'));
+      if (ref) cellNode.setAttribute('r', cellRef(ref.col, rowNum));
+      [...cellNode.childNodes].forEach(ch => {
+        if (ch.nodeType === 1 && ch.localName === 'f') {
+          ch.textContent = retargetFormulaText(ch.textContent, oldRowNum, rowNum);
+        }
+      });
+    }
+
+    function cloneTemplateRow(doc, templateRow, rowNum) {
+      const clone = templateRow.cloneNode(true);
+      const oldRowNum = Number(templateRow.getAttribute('r')) || START_ROW;
+      clone.setAttribute('r', String(rowNum));
+      [...clone.childNodes].forEach(node => {
+        if (node.nodeType === 1 && node.localName === 'c') updateCellForRow(node, rowNum, oldRowNum);
+      });
+      return clone;
+    }
+
+    function createBasicRow(doc, ns, rowNum) {
+      const row = doc.createElementNS(ns, 'row');
+      row.setAttribute('r', String(rowNum));
+      return row;
+    }
+
+    function getRowMap(sheetData) {
+      const rows = [...sheetData.childNodes].filter(n => n.nodeType === 1 && n.localName === 'row');
+      const map = new Map();
+      rows.forEach(r => map.set(Number(r.getAttribute('r')), r));
+      return map;
+    }
+
+    function getCellTemplateMap(templateRow) {
+      const map = new Map();
+      if (!templateRow) return map;
+      [...templateRow.childNodes].forEach(node => {
+        if (node.nodeType !== 1 || node.localName !== 'c') return;
+        const ref = parseCellRef(node.getAttribute('r'));
+        if (!ref) return;
+        map.set(ref.col, node);
+      });
+      return map;
+    }
+
+    function getOrCreateCell(doc, rowNode, colIndex, templateCell) {
+      const targetRef = cellRef(colIndex, Number(rowNode.getAttribute('r')));
+      let cell = [...rowNode.childNodes].find(n => n.nodeType === 1 && n.localName === 'c' && n.getAttribute('r') === targetRef);
+      if (cell) return cell;
+
+      const ns = rowNode.namespaceURI;
+      cell = templateCell ? templateCell.cloneNode(true) : doc.createElementNS(ns, 'c');
+      cell.setAttribute('r', targetRef);
+      [...cell.childNodes].forEach(ch => {
+        if (ch.nodeType === 1 && (ch.localName === 'v' || ch.localName === 'is' || ch.localName === 'f')) cell.removeChild(ch);
+      });
+      rowNode.appendChild(cell);
+      sortRowCells(rowNode);
+      return cell;
+    }
+
+    function clearCellValue(doc, cellNode) {
+      cellNode.removeAttribute('t');
+      [...cellNode.childNodes].forEach(ch => {
+        if (ch.nodeType === 1 && (ch.localName === 'v' || ch.localName === 'is')) cellNode.removeChild(ch);
+      });
+    }
+
+    function setCellValue(doc, cellNode, value) {
+      const ns = cellNode.namespaceURI;
+      [...cellNode.childNodes].forEach(ch => {
+        if (ch.nodeType === 1 && (ch.localName === 'v' || ch.localName === 'is')) cellNode.removeChild(ch);
+      });
+
+      if (value === null || value === undefined || value === '') {
+        cellNode.removeAttribute('t');
+        return;
+      }
+
+      const raw = String(value).trim();
+      const numeric = typeof value === 'number' ? value : (raw !== '' && /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : NaN);
+      if (Number.isFinite(numeric) && raw !== '' && !/^0\d+$/.test(raw)) {
+        cellNode.removeAttribute('t');
+        const v = doc.createElementNS(ns, 'v');
+        v.textContent = String(numeric);
+        cellNode.appendChild(v);
+        return;
+      }
+
+      cellNode.setAttribute('t', 'inlineStr');
+      const isNode = doc.createElementNS(ns, 'is');
+      const tNode = doc.createElementNS(ns, 't');
+      if (/^\s|\s$/.test(String(value))) tNode.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
+      tNode.textContent = String(value);
+      isNode.appendChild(tNode);
+      cellNode.appendChild(isNode);
+    }
+
+    function updateDimension(doc, wsRoot, lastRow) {
+      const ns = wsRoot.namespaceURI;
+      let dim = [...wsRoot.childNodes].find(n => n.nodeType === 1 && n.localName === 'dimension');
+      if (!dim) {
+        dim = doc.createElementNS(ns, 'dimension');
+        wsRoot.insertBefore(dim, wsRoot.firstChild);
+      }
+      dim.setAttribute('ref', `A1:${cellRef(Math.max(OUTPUT_LAST_COL_INDEX, 1), Math.max(lastRow, 1))}`);
+    }
+
+    function forceWorkbookRecalc(workbookXml) {
+      const doc = new DOMParser().parseFromString(workbookXml, 'application/xml');
+      const root = doc.documentElement;
+      const ns = root.namespaceURI;
+      const calcPr = getOrCreateChildNS(doc, root, ns, 'calcPr');
+      calcPr.setAttribute('calcMode', 'auto');
+      calcPr.setAttribute('fullCalcOnLoad', '1');
+      calcPr.setAttribute('forceFullCalc', '1');
+      return new XMLSerializer().serializeToString(doc);
+    }
+
+    function findSheetPath(zip, workbookXml, workbookRelsXml, targetSheetName) {
+      const wbDoc = new DOMParser().parseFromString(workbookXml, 'application/xml');
+      const relDoc = new DOMParser().parseFromString(workbookRelsXml, 'application/xml');
+      const sheets = [...wbDoc.getElementsByTagNameNS('*', 'sheet')];
+      const targetSheet = sheets.find(s => s.getAttribute('name') === targetSheetName);
+      if (!targetSheet) throw new Error(`Sheet "${targetSheetName}" tidak ditemukan di template.`);
+
+      const relId = targetSheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') || targetSheet.getAttribute('r:id');
+      const rels = [...relDoc.getElementsByTagNameNS('*', 'Relationship')];
+      const rel = rels.find(r => r.getAttribute('Id') === relId);
+      if (!rel) throw new Error(`Relationship sheet "${targetSheetName}" tidak ditemukan.`);
+
+      let target = rel.getAttribute('Target') || '';
+      target = target.replace(/^\//, '');
+      if (target.startsWith('worksheets/')) return `xl/${target}`;
+      if (target.startsWith('../')) return target.replace(/^\.\.\//, '');
+      if (target.startsWith('xl/')) return target;
+      return `xl/${target}`;
+    }
+
+    async function fillTemplateSafely(templateFile, outputRows) {
+      setStatus('Membaca template workbook...');
+      const zip = await JSZip.loadAsync(await templateFile.arrayBuffer());
+
+      const workbookPath = 'xl/workbook.xml';
+      const workbookRelsPath = 'xl/_rels/workbook.xml.rels';
+      const workbookXml = await zip.file(workbookPath)?.async('string');
+      const workbookRelsXml = await zip.file(workbookRelsPath)?.async('string');
+      if (!workbookXml || !workbookRelsXml) throw new Error('Struktur template workbook tidak valid.');
+
+      const sheetPath = findSheetPath(zip, workbookXml, workbookRelsXml, TEMPLATE_SHEET_NAME);
+      const sheetXml = await zip.file(sheetPath)?.async('string');
+      if (!sheetXml) throw new Error(`XML untuk sheet "${TEMPLATE_SHEET_NAME}" tidak ditemukan.`);
+
+      const doc = new DOMParser().parseFromString(sheetXml, 'application/xml');
+      if (doc.querySelector('parsererror')) throw new Error('Gagal membaca XML sheet template.');
+
+      const wsRoot = doc.documentElement;
+      const ns = wsRoot.namespaceURI;
+      const sheetData = getOrCreateChildNS(doc, wsRoot, ns, 'sheetData');
+      const rowMap = getRowMap(sheetData);
+
+      const existingRows = [...rowMap.keys()];
+      const templateRowNum = existingRows.find(n => n >= START_ROW) || START_ROW;
+      const templateRow = rowMap.get(templateRowNum) || createBasicRow(doc, ns, START_ROW);
+      if (!rowMap.has(templateRowNum)) sheetData.appendChild(templateRow);
+      const templateCellMap = getCellTemplateMap(templateRow);
+
+      const lastDataRow = START_ROW + outputRows.length - 1;
+      const maxExistingRow = existingRows.length ? Math.max(...existingRows) : START_ROW;
+      const loopUntil = Math.max(lastDataRow, maxExistingRow);
+
+      for (let rowNum = START_ROW; rowNum <= loopUntil; rowNum++) {
+        let rowNode = rowMap.get(rowNum);
+        if (!rowNode) {
+          rowNode = cloneTemplateRow(doc, templateRow, rowNum);
+          sheetData.appendChild(rowNode);
+          rowMap.set(rowNum, rowNode);
+        }
+
+        const rowValues = outputRows[rowNum - START_ROW] || null;
+        for (let colIndex = START_COL_INDEX; colIndex <= OUTPUT_LAST_COL_INDEX; colIndex++) {
+          const templateCell = templateCellMap.get(colIndex) || null;
+          const cellNode = getOrCreateCell(doc, rowNode, colIndex, templateCell);
+          if (!rowValues) {
+            clearCellValue(doc, cellNode);
+            continue;
+          }
+          setCellValue(doc, cellNode, rowValues[colIndex - START_COL_INDEX]);
+        }
+      }
+
+      const sortedRows = [...rowMap.values()].sort((a, b) => Number(a.getAttribute('r')) - Number(b.getAttribute('r')));
+      sortedRows.forEach(r => sheetData.appendChild(r));
+      updateDimension(doc, wsRoot, Math.max(loopUntil, START_ROW));
+
+      zip.file(sheetPath, new XMLSerializer().serializeToString(doc));
+      zip.file(workbookPath, forceWorkbookRecalc(workbookXml));
+
+      setStatus('Menyimpan file output...');
+      const buffer = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(buffer);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'MASTER_POP_UP_TEMPLATE_FIXED.xlsx';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    async function generate() {
+      const db = el.dbFile.files[0];
+      const kmz = el.kmzFile.files[0];
+      const template = el.templateFile.files[0];
+
+      if (!db) return alert('Upload DATABASE terlebih dahulu.');
+      if (!template) return alert('Upload TEMPLATE MASTER POP terlebih dahulu.');
+
+      const areaInput = {
+        area: el.area.value.trim(),
+        district: el.district.value.trim(),
+        subdistrict: el.subdistrict.value.trim(),
+        postcode: el.postcode.value.trim(),
+        fdt: el.fdt.value.trim(),
+        idarea: el.idarea.value.trim()
+      };
+
+      el.generateBtn.disabled = true;
+      try {
+        setStatus('Membaca file database...');
+        const rows = await readWorkbookRows(db);
+
+        let segs = [];
+        if (kmz) {
+          setStatus(`Database terbaca: ${rows.length} baris.\nMembaca file KMZ...`);
+          segs = await parseKMZ(kmz);
+          setStatus(`KMZ terbaca: ${segs.length} segmen line ditemukan.\nMenyusun output...`);
+        } else {
+          setStatus(`Database terbaca: ${rows.length} baris.\nMenyusun output...`);
+        }
+
+        const result = buildOutputRows(rows, areaInput, segs);
+        setStatus(
+          `Output siap.\n` +
+          `Home rows: ${result.homeCount}\n` +
+          `Pole rows: ${result.poleCount}\n` +
+          `Menulis ke template sheet \"${TEMPLATE_SHEET_NAME}\"...`
+        );
+
+        await fillTemplateSafely(template, result.rows);
+        setStatus(
+          `Berhasil generate file.\n` +
+          `Home rows: ${result.homeCount}\n` +
+          `Pole rows: ${result.poleCount}\n` +
+          `Output: MASTER_POP_UP_TEMPLATE_FIXED.xlsx`
+        );
+      } catch (err) {
+        console.error(err);
+        const msg = err?.message || String(err);
+        setStatus(`Gagal: ${msg}`);
+        alert(`Generate gagal.\n\n${msg}`);
+      } finally {
+        el.generateBtn.disabled = false;
+      }
+    }
+
+    el.generateBtn.addEventListener('click', generate);
+  </script>
+</body>
+</html>
