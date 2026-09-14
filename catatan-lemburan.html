@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catatan Lemburan</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115;
+    --card:#171a21;
+    --accent:#f2b705;
+    --accent2:#ff7849;
+    --text:#f1f3f6;
+    --muted:#9aa3af;
+    --border:#262a33;
+    --green:#3ddc84;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(circle at top left,#1a1d26,#0f1115 60%);
+    color:var(--text);
+    min-height:100vh;
+    padding:28px 14px 60px;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+  h1{font-size:1.5rem;margin-bottom:4px;letter-spacing:-0.5px;}
+  .sub{color:var(--muted);font-size:0.85rem;margin-bottom:22px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:20px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.25);
+  }
+  .card h2{font-size:1rem;margin:0 0 16px;color:var(--text);}
+  label{
+    display:block;
+    font-size:0.8rem;
+    color:var(--muted);
+    margin-bottom:6px;
+    margin-top:14px;
+  }
+  label:first-of-type{margin-top:0;}
+  input[type=text], input[type=date], input[type=time], input[type=number]{
+    width:100%;
+    padding:10px 12px;
+    background:#0f1115;
+    border:1px solid var(--border);
+    border-radius:10px;
+    color:var(--text);
+    font-size:0.92rem;
+    outline:none;
+    transition:border 0.15s;
+  }
+  input:focus{border-color:var(--accent);}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:130px;}
+  .toggle-line{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:16px;
+    padding:10px 12px;
+    background:#0f1115;
+    border:1px solid var(--border);
+    border-radius:10px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .toggle-line input{width:auto;accent-color:var(--accent);}
+  .toggle-line span{font-size:0.88rem;}
+  .extra-fields{
+    display:none;
+    padding-left:4px;
+    border-left:2px solid var(--border);
+    margin-left:6px;
+    margin-top:10px;
+    padding-top:2px;
+  }
+  .extra-fields.show{display:block;}
+  button.add{
+    width:100%;
+    margin-top:20px;
+    padding:13px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    border:none;
+    border-radius:12px;
+    color:#0f1115;
+    font-weight:700;
+    font-size:0.95rem;
+    cursor:pointer;
+  }
+  button.add:active{transform:scale(0.98);}
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:0.82rem;
+  }
+  thead th{
+    text-align:left;
+    color:var(--muted);
+    font-weight:600;
+    padding:8px 6px;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:9px 6px;
+    border-bottom:1px solid var(--border);
+    vertical-align:top;
+  }
+  tbody tr:hover{background:rgba(255,255,255,0.02);}
+  .weekend-tag{
+    display:inline-block;
+    background:#262a33;
+    color:var(--accent);
+    padding:2px 8px;
+    border-radius:6px;
+    font-size:0.72rem;
+  }
+  .del-btn{
+    background:none;
+    border:none;
+    color:#ff5c5c;
+    cursor:pointer;
+    font-size:0.9rem;
+    padding:2px 6px;
+  }
+  .empty-state{
+    text-align:center;
+    color:var(--muted);
+    padding:30px 0;
+    font-size:0.85rem;
+  }
+  .totals{
+    margin-top:4px;
+  }
+  .totals table{font-size:0.88rem;}
+  .totals td{padding:8px 6px;}
+  .totals td:last-child{text-align:right;font-variant-numeric:tabular-nums;}
+  .grand-row td{
+    border-top:2px solid var(--border);
+    padding-top:14px;
+    font-size:1.05rem;
+    font-weight:800;
+  }
+  .grand-row td:last-child{
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  button.export{
+    width:100%;
+    margin-top:12px;
+    padding:12px;
+    background:#0f1115;
+    border:1px solid var(--green);
+    border-radius:12px;
+    color:var(--green);
+    font-weight:700;
+    font-size:0.9rem;
+    cursor:pointer;
+  }
+  button.export:hover{background:rgba(61,220,132,0.08);}
+  button.export:disabled{
+    opacity:0.4;
+    cursor:not-allowed;
+  }
+  .table-scroll{overflow-x:auto;}
+  .note{
+    font-size:0.76rem;
+    color:var(--muted);
+    margin-top:16px;
+    line-height:1.5;
+    border-top:1px solid var(--border);
+    padding-top:12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🕘 Catatan Lemburan</h1>
+  <div class="sub">Rate lembur: Rp150.000 / 7 jam · Jam kerja normal 09.00–18.00</div>
+
+  <div class="card">
+    <h2>Tambah Entry</h2>
+
+    <label>Tanggal</label>
+    <input type="date" id="f-tanggal">
+
+    <label>Pengerjaan</label>
+    <input type="text" id="f-pengerjaan" placeholder="contoh: Fix bug login">
+
+    <div class="toggle-line" onclick="toggleWeekend(event)">
+      <input type="checkbox" id="f-weekend" onclick="event.stopPropagation()">
+      <span>Ini lembur Sabtu/Minggu (flat Rp150.000/hari)</span>
+    </div>
+
+    <div id="weekday-fields">
+      <div class="row">
+        <div>
+          <label>Jam Masuk</label>
+          <input type="text" id="f-masuk" value="09:00" placeholder="09:52" inputmode="numeric" maxlength="5">
+        </div>
+        <div>
+          <label>Jam Pulang</label>
+          <input type="text" id="f-pulang" placeholder="18:52" inputmode="numeric" maxlength="5">
+        </div>
+      </div>
+    </div>
+
+    <div class="toggle-line" onclick="toggleReimburse(event)">
+      <input type="checkbox" id="f-reimburse" onclick="event.stopPropagation()">
+      <span>Ada reimburse di entry ini</span>
+    </div>
+
+    <div class="extra-fields" id="reimburse-fields">
+      <label>Reimburse — tentang apa</label>
+      <input type="text" id="f-reimburse-desc" placeholder="contoh: Makan malam lembur">
+      <label>Reimburse — nominal (Rp)</label>
+      <input type="text" id="f-reimburse-nominal" placeholder="contoh: 35.000" inputmode="numeric">
+    </div>
+
+    <button class="add" onclick="tambahEntry()">+ Tambah Entry</button>
+  </div>
+
+  <div class="card">
+    <h2>Rekap Lemburan</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>DATE</th>
+            <th>PENGERJAAN</th>
+            <th>JAM MASUK</th>
+            <th>JAM PULANG</th>
+            <th>JAM LEMBUR</th>
+            <th>REIMBURSE</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState">Belum ada entry. Tambahin dulu di atas.</div>
+    </div>
+
+    <div class="totals" id="totalsBlock" style="display:none;">
+      <table>
+        <tr><td>Total Jam Lembur (hari kerja)</td><td id="t-jam">0.00 jam</td></tr>
+        <tr><td>Subtotal Lemburan Jam (jam × Rp150.000/7)</td><td id="t-subtotal">Rp 0</td></tr>
+        <tr><td>Total Lembur Sabtu/Minggu</td><td id="t-weekend">Rp 0</td></tr>
+        <tr><td>Total Reimburse</td><td id="t-reimburse">Rp 0</td></tr>
+        <tr class="grand-row"><td>GRAND TOTAL</td><td id="t-grand">Rp 0</td></tr>
+      </table>
+      <button class="export" onclick="exportExcel()">⬇ Export ke Excel</button>
+    </div>
+
+    <div class="note">
+      Jam lembur dihitung dari jam pulang dikurangi (18.00 + keterlambatan jam masuk dari 09.00). Kalau masuk tepat waktu/lebih awal, lembur tetap mulai dihitung 18.00. Entry Sabtu/Minggu dihitung flat Rp150.000, tidak per jam.
+    </div>
+  </div>
+</div>
+
+<script>
+  let entries = [];
+
+  function toggleWeekend(e){
+    const cb = document.getElementById('f-weekend');
+    if(e.target !== cb) cb.checked = !cb.checked;
+    document.getElementById('weekday-fields').style.display = cb.checked ? 'none' : 'block';
+  }
+
+  function toggleReimburse(e){
+    const cb = document.getElementById('f-reimburse');
+    if(e.target !== cb) cb.checked = !cb.checked;
+    document.getElementById('reimburse-fields').classList.toggle('show', cb.checked);
+  }
+
+  document.getElementById('f-reimburse-nominal').addEventListener('input', function(e){
+    let val = Number(e.target.value.replace(/[^0-9]/g,'')) || 0;
+    e.target.value = val ? val.toLocaleString('id-ID') : '';
+  });
+
+  function attachJamTypingFormat(id){
+    const el = document.getElementById(id);
+    el.addEventListener('input', function(e){
+      let digits = e.target.value.replace(/[^0-9]/g,'').slice(0,4);
+      let formatted = digits;
+      if(digits.length > 2){
+        formatted = digits.slice(0,2) + ':' + digits.slice(2);
+      }
+      e.target.value = formatted;
+    });
+    el.addEventListener('blur', function(e){
+      const v = e.target.value;
+      if(!v) return;
+      const digits = v.replace(/[^0-9]/g,'');
+      if(digits.length < 3){
+        // cuma jam doang diketik, misal "9" atau "18"
+        const h = parseInt(digits,10);
+        if(!isNaN(h) && h>=0 && h<=23){
+          e.target.value = String(h).padStart(2,'0') + ':00';
+        }
+        return;
+      }
+      let h = parseInt(digits.slice(0,2),10);
+      let m = parseInt(digits.slice(2,4),10);
+      if(isNaN(h) || h>23){ h = 0; }
+      if(isNaN(m) || m>59){ m = 0; }
+      e.target.value = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+    });
+  }
+  attachJamTypingFormat('f-masuk');
+  attachJamTypingFormat('f-pulang');
+
+  function isValidJam(t){
+    return /^([01]\d|2[0-3]):([0-5]\d)$/.test(t);
+  }
+
+  function timeToMinutes(t){
+    if(!t) return null;
+    const [h,m] = t.split(':').map(Number);
+    return h*60+m;
+  }
+
+  function minutesToDecimalHours(mins){
+    return mins/60;
+  }
+
+  function formatRupiah(num){
+    return 'Rp ' + Math.round(num).toLocaleString('id-ID');
+  }
+
+  function formatTanggal(iso){
+    if(!iso) return '-';
+    const d = new Date(iso+'T00:00:00');
+    return d.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'});
+  }
+
+  function tambahEntry(){
+    const tanggal = document.getElementById('f-tanggal').value;
+    const pengerjaan = document.getElementById('f-pengerjaan').value.trim();
+    const isWeekend = document.getElementById('f-weekend').checked;
+    const isReimburse = document.getElementById('f-reimburse').checked;
+
+    if(!tanggal){
+      alert('Isi tanggal dulu ya.');
+      return;
+    }
+
+    let jamMasuk = null, jamPulang = null, jamLemburDecimal = 0;
+
+    if(!isWeekend){
+      jamMasuk = document.getElementById('f-masuk').value;
+      jamPulang = document.getElementById('f-pulang').value;
+      if(!jamMasuk || !jamPulang){
+        alert('Isi jam masuk dan jam pulang dulu ya (atau centang lembur Sabtu/Minggu).');
+        return;
+      }
+      if(!isValidJam(jamMasuk) || !isValidJam(jamPulang)){
+        alert('Format jam masuk/pulang gak valid. Ketik contoh: 0952 atau 09:52.');
+        return;
+      }
+      const masukMin = timeToMinutes(jamMasuk);
+      const pulangMin = timeToMinutes(jamPulang);
+      const normalMasuk = timeToMinutes('09:00');
+      const normalPulang = timeToMinutes('18:00');
+
+      const keterlambatan = Math.max(0, masukMin - normalMasuk);
+      const threshold = normalPulang + keterlambatan;
+      const lemburMin = Math.max(0, pulangMin - threshold);
+      jamLemburDecimal = minutesToDecimalHours(lemburMin);
+    }
+
+    let reimburseDesc = '', reimburseNominal = 0;
+    if(isReimburse){
+      reimburseDesc = document.getElementById('f-reimburse-desc').value.trim();
+      reimburseNominal = Number(document.getElementById('f-reimburse-nominal').value.replace(/[^0-9]/g,'')) || 0;
+    }
+
+    entries.push({
+      tanggal, pengerjaan, isWeekend, jamMasuk, jamPulang,
+      jamLemburDecimal, isReimburse, reimburseDesc, reimburseNominal
+    });
+
+    entries.sort((a,b)=> a.tanggal.localeCompare(b.tanggal));
+
+    // reset form
+    document.getElementById('f-pengerjaan').value = '';
+    document.getElementById('f-pulang').value = '';
+    document.getElementById('f-masuk').value = '09:00';
+    document.getElementById('f-weekend').checked = false;
+    document.getElementById('weekday-fields').style.display = 'block';
+    document.getElementById('f-reimburse').checked = false;
+    document.getElementById('reimburse-fields').classList.remove('show');
+    document.getElementById('f-reimburse-desc').value = '';
+    document.getElementById('f-reimburse-nominal').value = '';
+
+    render();
+  }
+
+  function hapusEntry(idx){
+    entries.splice(idx,1);
+    render();
+  }
+
+  function render(){
+    const tbody = document.getElementById('tbody');
+    const emptyState = document.getElementById('emptyState');
+    const totalsBlock = document.getElementById('totalsBlock');
+
+    if(entries.length === 0){
+      tbody.innerHTML = '';
+      emptyState.style.display = 'block';
+      totalsBlock.style.display = 'none';
+      return;
+    }
+    emptyState.style.display = 'none';
+    totalsBlock.style.display = 'block';
+
+    let rows = '';
+    let totalJam = 0;
+    let totalWeekendCount = 0;
+    let totalReimburse = 0;
+
+    entries.forEach((e,idx)=>{
+      const jamMasukTxt = e.isWeekend ? '-' : e.jamMasuk;
+      const jamPulangTxt = e.isWeekend ? '-' : e.jamPulang;
+      const jamLemburTxt = e.isWeekend
+        ? '<span class="weekend-tag">Weekend flat</span>'
+        : e.jamLemburDecimal.toFixed(2) + ' jam';
+      const reimburseTxt = e.isReimburse
+        ? `${e.reimburseDesc || '(tanpa keterangan)'}<br><strong>${formatRupiah(e.reimburseNominal)}</strong>`
+        : '-';
+
+      rows += `<tr>
+        <td>${formatTanggal(e.tanggal)}</td>
+        <td>${e.pengerjaan || '-'}</td>
+        <td>${jamMasukTxt}</td>
+        <td>${jamPulangTxt}</td>
+        <td>${jamLemburTxt}</td>
+        <td>${reimburseTxt}</td>
+        <td><button class="del-btn" onclick="hapusEntry(${idx})">✕</button></td>
+      </tr>`;
+
+      if(!e.isWeekend) totalJam += e.jamLemburDecimal;
+      if(e.isWeekend) totalWeekendCount += 1;
+      if(e.isReimburse) totalReimburse += e.reimburseNominal;
+    });
+
+    tbody.innerHTML = rows;
+
+    const ratePerJam = 150000/7;
+    const subtotalJam = totalJam * ratePerJam;
+    const totalWeekendRupiah = totalWeekendCount * 150000;
+    const grandTotal = subtotalJam + totalWeekendRupiah + totalReimburse;
+
+    document.getElementById('t-jam').textContent = totalJam.toFixed(2) + ' jam';
+    document.getElementById('t-subtotal').textContent = formatRupiah(subtotalJam);
+    document.getElementById('t-weekend').textContent = formatRupiah(totalWeekendRupiah) + ` (${totalWeekendCount} hari)`;
+    document.getElementById('t-reimburse').textContent = formatRupiah(totalReimburse);
+    document.getElementById('t-grand').textContent = formatRupiah(grandTotal);
+  }
+
+  // set default tanggal ke hari ini
+  document.getElementById('f-tanggal').valueAsDate = new Date();
+
+  function exportExcel(){
+    if(entries.length === 0){
+      alert('Belum ada entry buat di-export.');
+      return;
+    }
+
+    const ratePerJam = 150000/7;
+    let totalJam = 0, totalWeekendCount = 0, totalReimburse = 0;
+
+    const header = ['DATE','PENGERJAAN','JAM MASUK','JAM PULANG','JAM LEMBUR (desimal)','REIMBURSE KETERANGAN','REIMBURSE NOMINAL'];
+    const rows = entries.map(e=>{
+      if(!e.isWeekend) totalJam += e.jamLemburDecimal;
+      if(e.isWeekend) totalWeekendCount += 1;
+      if(e.isReimburse) totalReimburse += e.reimburseNominal;
+
+      return [
+        formatTanggal(e.tanggal),
+        e.pengerjaan || '-',
+        e.isWeekend ? '-' : e.jamMasuk,
+        e.isWeekend ? '-' : e.jamPulang,
+        e.isWeekend ? 'Weekend flat (Rp150.000)' : Number(e.jamLemburDecimal.toFixed(2)),
+        e.isReimburse ? (e.reimburseDesc || '(tanpa keterangan)') : '-',
+        e.isReimburse ? e.reimburseNominal : ''
+      ];
+    });
+
+    const subtotalJam = totalJam * ratePerJam;
+    const totalWeekendRupiah = totalWeekendCount * 150000;
+    const grandTotal = subtotalJam + totalWeekendRupiah + totalReimburse;
+
+    const summary = [
+      [],
+      ['REKAP'],
+      ['Total Jam Lembur (hari kerja)', Number(totalJam.toFixed(2))],
+      ['Subtotal Lemburan Jam', subtotalJam],
+      ['Total Lembur Sabtu/Minggu', totalWeekendRupiah, `(${totalWeekendCount} hari)`],
+      ['Total Reimburse', totalReimburse],
+      ['GRAND TOTAL', grandTotal]
+    ];
+
+    const wsData = [header, ...rows, ...summary];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [
+      {wch:14},{wch:28},{wch:11},{wch:11},{wch:16},{wch:28},{wch:16}
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lemburan');
+
+    const today = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `catatan-lemburan-${today}.xlsx`);
+  }
+</script>
+</body>
+</html>
