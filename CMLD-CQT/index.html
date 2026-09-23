@@ -1,0 +1,5 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Excel to DXF V6</title><link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script></head>
+<body><div class="app"><header><div><h1>Excel → DXF Generator <small>V6 Precision Layout</small></h1><p>B4↓ LINE • C4↓ FAT CODE • I4↓ PANJANG</p></div><b>01 = SB &nbsp; 02 = EB</b></header>
+<div class="bar"><label>📂 Upload Excel<input id="file" type="file" accept=".xlsx,.xls"></label><button id="demo">Data Contoh</button><label class="fname">Nama File <input id="filename" type="text" value="line-diagram" maxlength="80"></label><button id="export">💾 Save As DXF</button></div>
+<div class="grid"><aside><b>DATA</b><div id="table"></div></aside><main><div class="ph">PREVIEW <span id="status"></span></div><div class="view"><svg id="svg"></svg></div></main></div></div><script src="app.js"></script></body></html>
