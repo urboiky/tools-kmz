@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cable Drop Only Generator</title>
+<style>
+:root{
+  --bg:#f4f7fb;
+  --card:#fff;
+  --text:#172033;
+  --muted:#667085;
+  --primary:#2563eb;
+  --primary2:#1d4ed8;
+  --border:#dbe3ee;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Segoe UI,Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+.wrap{
+  max-width:780px;
+  margin:42px auto;
+  padding:0 16px;
+}
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:18px;
+  box-shadow:0 12px 32px rgba(20,40,80,.08);
+  overflow:hidden;
+}
+.header{padding:26px 28px 12px}
+h1{margin:0 0 8px;font-size:28px}
+.header p{margin:0;color:var(--muted);line-height:1.55}
+.body{padding:20px 28px 28px}
+.drop{
+  border:2px dashed #b7c4d6;
+  border-radius:16px;
+  padding:34px 20px;
+  text-align:center;
+  background:#f9fbfe;
+  cursor:pointer;
+  transition:.2s;
+}
+.drop.drag{border-color:var(--primary);background:#eff6ff}
+.drop b{display:block;font-size:18px;margin-bottom:6px}
+.drop span{color:var(--muted);font-size:14px}
+input[type=file]{display:none}
+.fileinfo{
+  display:none;
+  margin-top:14px;
+  padding:12px 14px;
+  background:#f8fafc;
+  border:1px solid var(--border);
+  border-radius:10px;
+}
+.actions{
+  display:flex;
+  gap:10px;
+  margin-top:18px;
+}
+button{
+  border:0;
+  border-radius:10px;
+  padding:13px 18px;
+  font-weight:700;
+  font-size:15px;
+  cursor:pointer;
+}
+.primary{flex:1;background:var(--primary);color:white}
+.primary:hover{background:var(--primary2)}
+.primary:disabled{opacity:.45;cursor:not-allowed}
+.secondary{background:#eef2f7;color:#334155}
+.progress{display:none;margin-top:18px}
+.track{height:10px;background:#e7edf5;border-radius:999px;overflow:hidden}
+.bar{height:100%;width:0;background:var(--primary);transition:width .2s}
+.status{
+  margin-top:18px;
+  padding:14px 16px;
+  background:#f8fafc;
+  border:1px solid var(--border);
+  border-radius:12px;
+  white-space:pre-line;
+  line-height:1.55;
+}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+  margin-top:14px;
+}
+.stat{
+  padding:13px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:white;
+}
+.stat span{display:block;color:var(--muted);font-size:12px}
+.stat b{display:block;font-size:22px;margin-top:4px}
+.note{
+  margin-top:16px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.55;
+}
+@media(max-width:650px){
+  .stats{grid-template-columns:1fr 1fr}
+  .actions{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="header">
+      <h1>Cable Drop Only Generator</h1>
+      <p>
+        Generate FAT → HOME berdasarkan <b>FAT_CODE</b>.
+        Output KMZ hanya berisi hasil cable drop dalam <b>1 folder</b>.
+      </p>
+    </div>
+
+    <div class="body">
+      <div id="drop" class="drop">
+        <b>Klik atau tarik file KMZ/KML ke sini</b>
+        <span>File asli hanya dipakai sebagai sumber data</span>
+        <input id="file" type="file" accept=".kmz,.kml,.zip">
+      </div>
+
+      <div id="fileinfo" class="fileinfo"></div>
+
+      <div class="actions">
+        <button id="generate" class="primary" disabled>Generate Cable Drop Only</button>
+        <button id="reset" class="secondary">Reset</button>
+      </div>
+
+      <div id="progress" class="progress">
+        <div class="track"><div id="bar" class="bar"></div></div>
+      </div>
+
+      <div id="status" class="status">Pilih file terlebih dahulu.</div>
+
+      <div class="stats">
+        <div class="stat"><span>FAT</span><b id="fatCount">0</b></div>
+        <div class="stat"><span>HOME</span><b id="homeCount">0</b></div>
+        <div class="stat"><span>Cable Drop</span><b id="cableCount">0</b></div>
+        <div class="stat"><span>Gagal Cocok</span><b id="missCount">0</b></div>
+      </div>
+
+      <div class="note">
+        Output hanya berisi:
+        <b>Document → CABLE DROP GENERATED → Untitled Path</b>.
+        Tidak ada HOME, FAT, pole, polygon, folder lama, description, atau ExtendedData dari file sumber.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const fileEl=$('file');
+const drop=$('drop');
+const generateBtn=$('generate');
+const resetBtn=$('reset');
+const fileinfo=$('fileinfo');
+const statusEl=$('status');
+const progress=$('progress');
+const bar=$('bar');
+
+let selectedFile=null;
+
+const lname=e=>(e.localName||e.nodeName.split(':').pop()).toLowerCase();
+const norm=s=>String(s??'').trim().toUpperCase();
+
+function setProgress(v){
+  progress.style.display='block';
+  bar.style.width=v+'%';
+}
+function setStats(f=0,h=0,c=0,m=0){
+  $('fatCount').textContent=f;
+  $('homeCount').textContent=h;
+  $('cableCount').textContent=c;
+  $('missCount').textContent=m;
+}
+function textOf(parent,name){
+  const e=[...parent.getElementsByTagName('*')]
+    .find(x=>lname(x)===name.toLowerCase());
+  return e&&e.textContent?e.textContent.trim():'';
+}
+function dataOf(pm){
+  const out={};
+
+  [...pm.getElementsByTagName('*')].forEach(x=>{
+    const ln=lname(x);
+
+    if(ln==='data'){
+      const n=x.getAttribute('name');
+      const v=[...x.getElementsByTagName('*')]
+        .find(y=>lname(y)==='value');
+
+      if(n&&v) out[norm(n)]=v.textContent.trim();
+    }
+
+    if(ln==='simpledata'){
+      const n=x.getAttribute('name');
+      if(n) out[norm(n)]=x.textContent.trim();
+    }
+  });
+
+  const desc=textOf(pm,'description');
+  if(desc){
+    const m=desc.match(/FAT[_\s-]*CODE\s*[:=]\s*([^<\r\n]+)/i);
+    if(m) out.FAT_CODE=m[1].trim();
+  }
+
+  return out;
+}
+function coordOf(pm){
+  const e=[...pm.getElementsByTagName('*')]
+    .find(x=>lname(x)==='coordinates');
+
+  if(!e) return null;
+
+  const p=e.textContent.trim().split(/\s+/)[0].split(',');
+  if(p.length<2) return null;
+
+  const lon=parseFloat(p[0]);
+  const lat=parseFloat(p[1]);
+
+  return Number.isFinite(lon)&&Number.isFinite(lat)
+    ? {lon,lat}
+    : null;
+}
+function hasPoint(pm){
+  return [...pm.getElementsByTagName('*')]
+    .some(x=>lname(x)==='point');
+}
+
+function detectFat(x){
+  const d=x.d;
+  const name=norm(x.name);
+  const type=norm(d.TYPE||d.OBJECT_TYPE||d.OBJECTTYPE||'');
+
+  if(/\bFAT\b/.test(name)) return true;
+  if(type.includes('FAT')&&!type.includes('HOME')) return true;
+
+  // Format Perikanan/Jagakarsa
+  if(
+    (d.FAT_CODE||d.FATCODE) &&
+    (d.LATITUDE_FAT||d.LONGITUDE_FAT||d.FAT_CAPACITY) &&
+    !d.HOMEPASS_ID
+  ) return true;
+
+  // Format Kemang
+  if(
+    d.NETWORK_ID &&
+    (d.FAT_LAT||d.FAT_LONG||d.KAPASITAS)
+  ) return true;
+
+  return false;
+}
+
+function detectHome(x){
+  const d=x.d;
+  const name=norm(x.name);
+  const type=norm(d.TYPE||d.OBJECT_TYPE||d.OBJECTTYPE||'');
+
+  if(/\bHOME\b/.test(name)) return true;
+  if(type.includes('HOME')) return true;
+  if(d.HOMEPASS_ID&&(d.FAT_CODE||d.FATCODE)) return true;
+
+  if((d.FAT_CODE||d.FATCODE)&&!detectFat(x)) return true;
+
+  return false;
+}
+
+function fatCode(x){
+  return norm(
+    x.d.NETWORK_ID||
+    x.d.FAT_CODE||
+    x.d.FATCODE||
+    x.d.CODE_FAT||
+    x.d.FAT||
+    x.d.CODE||
+    x.name
+  );
+}
+
+function homeCode(x){
+  return norm(
+    x.d.FAT_CODE||
+    x.d.FATCODE||
+    x.d.CODE_FAT||
+    x.d.FAT||
+    ''
+  );
+}
+
+function cleanCode(v){
+  return norm(v)
+    .replace(/^FAT\s*[:\-]?\s*/i,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+async function loadSource(file){
+  const buf=await file.arrayBuffer();
+
+  if(file.name.toLowerCase().endsWith('.kml')){
+    return new TextDecoder().decode(buf);
+  }
+
+  const zip=await JSZip.loadAsync(buf);
+  const kmls=Object.keys(zip.files)
+    .filter(n=>n.toLowerCase().endsWith('.kml'));
+
+  if(!kmls.length){
+    throw new Error('Tidak ditemukan KML di dalam file KMZ.');
+  }
+
+  const path=
+    kmls.find(n=>n.toLowerCase()==='doc.kml')||
+    kmls[0];
+
+  return await zip.file(path).async('string');
+}
+
+function chooseFile(file){
+  selectedFile=file||null;
+  generateBtn.disabled=!selectedFile;
+
+  if(selectedFile){
+    fileinfo.style.display='block';
+    fileinfo.textContent='File dipilih: '+selectedFile.name;
+    statusEl.textContent='Siap diproses.';
+  }else{
+    fileinfo.style.display='none';
+    fileinfo.textContent='';
+    statusEl.textContent='Pilih file terlebih dahulu.';
+  }
+}
+
+drop.onclick=()=>fileEl.click();
+fileEl.onchange=()=>chooseFile(fileEl.files[0]);
+
+drop.ondragover=e=>{
+  e.preventDefault();
+  drop.classList.add('drag');
+};
+drop.ondragleave=()=>drop.classList.remove('drag');
+drop.ondrop=e=>{
+  e.preventDefault();
+  drop.classList.remove('drag');
+  if(e.dataTransfer.files[0]){
+    chooseFile(e.dataTransfer.files[0]);
+  }
+};
+
+resetBtn.onclick=()=>{
+  selectedFile=null;
+  fileEl.value='';
+  generateBtn.disabled=true;
+  fileinfo.style.display='none';
+  statusEl.textContent='Pilih file terlebih dahulu.';
+  progress.style.display='none';
+  bar.style.width='0%';
+  setStats();
+};
+
+generateBtn.onclick=async()=>{
+  if(!selectedFile) return;
+
+  try{
+    generateBtn.disabled=true;
+    setStats();
+    setProgress(5);
+    statusEl.textContent='Membaca file sumber...';
+
+    const sourceKml=await loadSource(selectedFile);
+    setProgress(20);
+
+    const xml=new DOMParser()
+      .parseFromString(sourceKml,'application/xml');
+
+    if(xml.getElementsByTagName('parsererror').length){
+      throw new Error('KML tidak valid.');
+    }
+
+    const points=[...xml.getElementsByTagName('*')]
+      .filter(x=>lname(x)==='placemark')
+      .map(pm=>({
+        pm,
+        name:textOf(pm,'name'),
+        d:dataOf(pm),
+        c:coordOf(pm)
+      }))
+      .filter(x=>x.c&&hasPoint(x.pm));
+
+    setProgress(38);
+
+    const fats=points
+      .filter(detectFat)
+      .map(x=>({...x,code:fatCode(x)}))
+      .filter(x=>x.code);
+
+    const fatMap=new Map();
+
+    for(const fat of fats){
+      const keys=[
+        norm(fat.code),
+        cleanCode(fat.code),
+        norm(fat.name),
+        cleanCode(fat.name)
+      ];
+
+      for(const key of keys){
+        if(key&&!fatMap.has(key)){
+          fatMap.set(key,fat);
+        }
+      }
+    }
+
+    const homes=points
+      .filter(detectHome)
+      .map(x=>({...x,code:homeCode(x)}));
+
+    setProgress(58);
+
+    const pairs=[];
+    const unmatched=[];
+
+    for(const home of homes){
+      if(!home.code||home.code==='-'){
+        unmatched.push(home);
+        continue;
+      }
+
+      const fat=
+        fatMap.get(norm(home.code))||
+        fatMap.get(cleanCode(home.code));
+
+      if(fat){
+        pairs.push({fat,home});
+      }else{
+        unmatched.push(home);
+      }
+    }
+
+    setStats(
+      fats.length,
+      homes.length,
+      pairs.length,
+      unmatched.length
+    );
+
+    setProgress(72);
+
+    // BUAT KML BARU DARI NOL.
+    // Hanya satu folder berisi cable drop.
+    let kml=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>CABLE DROP GENERATED</name>
+
+  <Style id="generatedCableStyle">
+    <LineStyle>
+      <color>ff00ffff</color>
+      <width>3</width>
+    </LineStyle>
+  </Style>
+
+  <Folder>
+    <name>CABLE DROP GENERATED</name>`;
+
+    for(const p of pairs){
+      kml+=`
+    <Placemark>
+      <name>Untitled Path</name>
+      <styleUrl>#generatedCableStyle</styleUrl>
+      <LineString>
+        <tessellate>1</tessellate>
+        <coordinates>${p.fat.c.lon},${p.fat.c.lat},0 ${p.home.c.lon},${p.home.c.lat},0</coordinates>
+      </LineString>
+    </Placemark>`;
+    }
+
+    kml+=`
+  </Folder>
+</Document>
+</kml>`;
+
+    setProgress(85);
+
+    const zip=new JSZip();
+    zip.file('doc.kml',kml);
+
+    const blob=await zip.generateAsync({
+      type:'blob',
+      compression:'DEFLATE',
+      compressionOptions:{level:6}
+    });
+
+    setProgress(96);
+
+    const base=selectedFile.name
+      .replace(/\.(kmz|kml|zip)$/i,'');
+
+    const outputName=
+      base+' - CABLE DROP ONLY.kmz';
+
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+
+    a.href=url;
+    a.download=outputName;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(()=>URL.revokeObjectURL(url),2500);
+
+    setProgress(100);
+
+    statusEl.textContent=
+`Selesai.
+
+FAT: ${fats.length}
+HOME: ${homes.length}
+Cable Drop dibuat: ${pairs.length}
+Tidak terhubung: ${unmatched.length}
+
+Output hanya berisi 1 folder:
+CABLE DROP GENERATED
+
+File hasil:
+${outputName}`;
+
+  }catch(e){
+    console.error(e);
+    setProgress(0);
+    statusEl.textContent='Gagal: '+e.message;
+  }finally{
+    generateBtn.disabled=false;
+  }
+};
+</script>
+</body>
+</html>
