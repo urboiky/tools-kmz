@@ -394,6 +394,7 @@ async function readKmlLike(file, sourceTag){
   return result;
 
 }
+  {
   const xml=new DOMParser().parseFromString(kmlText,'application/xml');
   if(xml.querySelector('parsererror')) throw new Error('KML tidak valid: '+file.name);
   const folderNodes=[...xml.getElementsByTagName('Folder')];
