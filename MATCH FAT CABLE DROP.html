@@ -394,7 +394,7 @@ async function readKmlLike(file, sourceTag){
   return result;
 
 }
-  {
+  
   const xml=new DOMParser().parseFromString(kmlText,'application/xml');
   if(xml.querySelector('parsererror')) throw new Error('KML tidak valid: '+file.name);
   const folderNodes=[...xml.getElementsByTagName('Folder')];
@@ -426,6 +426,7 @@ function fillSelect(sel, folders, guessRegex){
 }
 
 $('loadBtn').onclick=async()=>{
+  $('loadStatus').textContent='Tombol terbaca...';
   const mf=$('mainFile').files[0], ff=$('fatFile').files[0];
   if(!mf){$('loadStatus').textContent='Pilih KMZ utama dulu.';return}
   try{
