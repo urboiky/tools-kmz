@@ -59,22 +59,16 @@ async function getKmlText(file){
   if(!kmlName) throw new Error('File KMZ tidak memiliki KML.'); return await zip.files[kmlName].async('text');
 }
 function parseKml(kml){
-  const xml=new DOMParser().parseFromString(kml,'application/xml'); if(xml.querySelector('parsererror')) throw new Error('KML tidak valid.');
-  const placemarks=descendants(xml.documentElement,'Placemark'); const homes=[], roads=[];
-  for(const pm of placemarks){
-    const name=textChild(pm,'name'); const path=folderPath(pm); const point=descendants(pm,'Point')[0]; const polygonEls=descendants(pm,'Polygon');
-    if(path.some(x=>norm(x)==='HOME') && point){
-      const c=parseCoordText(textChild(point,'coordinates'))[0];
-      if(c) homes.push({house:name,lon:c[0],lat:c[1],forcedNoSite:/^\s*\?-/.test(name)});
-    }
-    if(path.some(x=>norm(x)==='JALAN') && polygonEls.length){
-      for(const polyEl of polygonEls){
-        const outer=descendants(polyEl,'outerBoundaryIs')[0]; if(!outer) continue; const ring=parseCoordText(descendants(outer,'coordinates')[0]?.textContent||'');
-        if(ring.length<3) continue; if(ring[0][0]!==ring.at(-1)[0]||ring[0][1]!==ring.at(-1)[1]) ring.push([...ring[0]]);
-        const holes=[]; for(const inner of descendants(polyEl,'innerBoundaryIs')){let r=parseCoordText(descendants(inner,'coordinates')[0]?.textContent||'');if(r.length>=3){if(r[0][0]!==r.at(-1)[0]||r[0][1]!==r.at(-1)[1])r.push([...r[0]]);holes.push(r)}}
-        roads.push({name, feature:turf.polygon([ring,...holes])});
-      }
-    }
+  kml = kml.replace(/<ns\d+:link[\s\S]*?<\/ns\d+:link>/gi,'');
+  kml = kml.replace(/xmlns:ns\d+="[^"]+"/gi,'');
+
+  const xml=new DOMParser().parseFromString(kml,'application/xml');
+
+  if(xml.querySelector('parsererror')){
+      throw new Error('KML tidak valid setelah cleaning.');
+  }
+
+  const placemarks=descendants(xml.documentElement,'Placemark');
   }
   return {homes,roads};
 }
