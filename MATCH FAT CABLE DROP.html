@@ -414,8 +414,16 @@ async function readKmlLike(file, sourceTag){
       else if(polygonNode){type='Polygon'; const c=[...polygonNode.getElementsByTagName('*')].find(n=>n.localName==='coordinates'); coords=coordList(c?.textContent||'');}
       if(coords.length) items.push({name:pname,type,coords,order:idx,source:sourceTag,folder:name});
     });
-    if(items.length) out.push({key:`${sourceTag}::${name}`,source:sourceTag,name,items});
-  }
+    if(items.length) {
+  out.push({
+    key:`${sourceTag}::${name}`,
+    source:sourceTag,
+    name,
+    items
+  });
+}
+
+}
   return out;
 }
 
