@@ -74,11 +74,41 @@ function cleanName(s){ return (s||'').replace(/\s+/g,' ').trim(); }
 function localName(el){ return el.localName || el.nodeName.split(':').pop(); }
 
 async function readTextFromKmzOrKml(file){
-  if(file.name.toLowerCase().endsWith('.kml')) return await file.text();
-  const zip = await JSZip.loadAsync(file);
-  const kmlName = Object.keys(zip.files).find(n=>n.toLowerCase().endsWith('.kml'));
-  if(!kmlName) throw new Error('Di KMZ tidak ada file .kml');
-  return await zip.files[kmlName].async('text');
+  if(file.name.toLowerCase().endsWith('.kml')){
+    return await file.text();
+  }
+  try{
+    const buffer = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+    const kmlName = Object.keys(zip.files)
+      .find(n => n.toLowerCase().endsWith('.kml'));
+    if(!kmlName){
+      throw new Error('Di KMZ tidak ada file .kml');
+    }
+    let kml = await zip.files[kmlName].async('text');
+    // ============================
+    // AUTO REPAIR KML GOOGLE EARTH
+    // ============================
+    // hapus namespace rusak ns2, ns3 dll
+    kml = kml.replace(
+      /<ns\d+:link[\s\S]*?<\/ns\d+:link>/gi,
+      ''
+    );
+    kml = kml.replace(
+      /xmlns:ns\d+="[^"]+"/gi,
+      ''
+    );
+    // hapus karakter XML ilegal
+    kml = kml.replace(
+      /[\x00-\x08\x0B\x0C\x0E-\x1F]/g,
+      ''
+    );
+    return kml;
+  }catch(e){
+    throw new Error(
+      'KMZ gagal dibaca: ' + e.message
+    );
+  }
 }
 function directChildText(el, tag){
   for(const c of el.children){ if(localName(c)===tag) return cleanName(c.textContent); }
