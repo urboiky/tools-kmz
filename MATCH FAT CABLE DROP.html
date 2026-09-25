@@ -85,16 +85,215 @@ function nearest(pt, arr){let best=null, d=Infinity; for(const x of arr){const d
 function farthestPair(points){if(points.length<2)return null;if(points.length===2)return [points[0],points[1]];let bi=0,bj=1,bd=-1;for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j++){const d=hav(points[i],points[j]);if(d>bd){bd=d;bi=i;bj=j}}return [points[bi],points[bj]]}
 
 async function readKmlLike(file, sourceTag){
+
   if(!file) return [];
-  let kmlText='';
-  if(file.name.toLowerCase().endsWith('.kml')) kmlText=await file.text();
-  else {
-    const zip=await JSZip.loadAsync(await file.arrayBuffer());
-    const kmlNames=Object.keys(zip.files).filter(n=>n.toLowerCase().endsWith('.kml'));
-    if(!kmlNames.length) throw new Error('Tidak menemukan file KML di dalam '+file.name);
-    const preferred=kmlNames.find(n=>/(^|\/)doc\.kml$/i.test(n))||kmlNames[0];
-    kmlText=await zip.file(preferred).async('text');
+
+  let kmlText = '';
+
+  if(file.name.toLowerCase().endsWith('.kml')){
+
+    kmlText = await file.text();
+
+  }else{
+
+    const zip = await JSZip.loadAsync(
+      await file.arrayBuffer()
+    );
+
+
+    const kmlNames = Object.keys(zip.files)
+      .filter(n => n.toLowerCase().endsWith('.kml'));
+
+
+    if(!kmlNames.length){
+      throw new Error(
+        'Tidak menemukan file KML di dalam ' + file.name
+      );
+    }
+
+
+    const kmlName =
+      kmlNames.find(n => /(^|\/)doc\.kml$/i.test(n))
+      || kmlNames[0];
+
+
+    kmlText =
+      await zip.file(kmlName).async('text');
+
   }
+
+
+
+  // ===============================
+  // AUTO REPAIR KML GOOGLE EARTH
+  // ===============================
+
+  kmlText = kmlText.replace(
+    /<ns\d+:link[\s\S]*?<\/ns\d+:link>/gi,
+    ''
+  );
+
+
+  kmlText = kmlText.replace(
+    /xmlns:ns\d+="[^"]+"/gi,
+    ''
+  );
+
+
+  kmlText = kmlText.replace(
+    /[\x00-\x08\x0B\x0C\x0E-\x1F]/g,
+    ''
+  );
+
+
+
+  const xml =
+    new DOMParser()
+    .parseFromString(
+      kmlText,
+      'application/xml'
+    );
+
+
+  if(xml.querySelector('parsererror')){
+    throw new Error(
+      'KML tidak valid setelah repair: ' + file.name
+    );
+  }
+
+
+
+  const folders =
+    [...xml.getElementsByTagName('Folder')];
+
+
+  const result = [];
+
+
+
+  for(const folder of folders){
+
+    const folderName =
+      [...folder.children]
+      .find(c => c.localName === 'name')
+      ?.textContent.trim()
+      || '(Tanpa Folder)';
+
+
+    const items = [];
+
+
+    const placemarks =
+      [...folder.children]
+      .filter(c => c.localName === 'Placemark');
+
+
+
+    placemarks.forEach((pm,index)=>{
+
+      const name =
+        [...pm.children]
+        .find(c => c.localName === 'name')
+        ?.textContent.trim()
+        || `Placemark ${index+1}`;
+
+
+
+      const point =
+        [...pm.getElementsByTagName('*')]
+        .find(e => e.localName === 'Point');
+
+
+      const line =
+        [...pm.getElementsByTagName('*')]
+        .find(e => e.localName === 'LineString');
+
+
+      const polygon =
+        [...pm.getElementsByTagName('*')]
+        .find(e => e.localName === 'Polygon');
+
+
+
+      let type = '';
+      let coords = [];
+
+
+
+      let coordNode;
+
+
+
+      if(point){
+
+        type = 'Point';
+
+        coordNode =
+          [...point.getElementsByTagName('*')]
+          .find(e => e.localName === 'coordinates');
+
+
+      }else if(line){
+
+        type = 'LineString';
+
+        coordNode =
+          [...line.getElementsByTagName('*')]
+          .find(e => e.localName === 'coordinates');
+
+
+      }else if(polygon){
+
+        type = 'Polygon';
+
+        coordNode =
+          [...polygon.getElementsByTagName('*')]
+          .find(e => e.localName === 'coordinates');
+
+      }
+
+
+
+      if(coordNode){
+        coords = parseCoordText(
+          coordNode.textContent
+        );
+      }
+
+
+
+      items.push({
+
+        name:name,
+
+        type:type,
+
+        coords:coords,
+
+        source:sourceTag
+
+      });
+
+
+    });
+
+
+
+    result.push({
+
+      folder:folderName,
+
+      items:items
+
+    });
+
+  }
+
+
+
+  return result;
+
+}
   const xml=new DOMParser().parseFromString(kmlText,'application/xml');
   if(xml.querySelector('parsererror')) throw new Error('KML tidak valid: '+file.name);
   const folderNodes=[...xml.getElementsByTagName('Folder')];
