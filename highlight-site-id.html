@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cek Site ID Terpakai</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f172a;
+    --panel:#111c34;
+    --panel-2:#0b1428;
+    --border:#22304f;
+    --text:#e8edf7;
+    --muted:#8fa0c2;
+    --accent:#3ba0ff;
+    --danger:#ff5470;
+    --danger-bg:#3a1420;
+    --ok:#39d98a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI',Roboto,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:24px;
+  }
+  h1{
+    font-size:20px;
+    margin:0 0 4px 0;
+  }
+  p.sub{
+    color:var(--muted);
+    margin:0 0 20px 0;
+    font-size:13px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+    margin-bottom:20px;
+  }
+  @media (max-width:800px){
+    .grid{grid-template-columns:1fr;}
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px;
+  }
+  .card h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--muted);
+    margin:0 0 10px 0;
+  }
+  input[type=file]{
+    color:var(--text);
+    font-size:13px;
+    width:100%;
+  }
+  textarea{
+    width:100%;
+    min-height:130px;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    color:var(--text);
+    padding:10px;
+    font-family:'Consolas',monospace;
+    font-size:13px;
+    resize:vertical;
+  }
+  textarea:focus, input:focus{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+  }
+  .status{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:8px;
+  }
+  .toolbar{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+  button{
+    background:var(--accent);
+    color:#04101f;
+    border:none;
+    border-radius:8px;
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  button.secondary{
+    background:transparent;
+    color:var(--text);
+    border:1px solid var(--border);
+  }
+  button:disabled{
+    opacity:.4;
+    cursor:not-allowed;
+  }
+  .summary{
+    font-size:13px;
+    color:var(--muted);
+  }
+  .summary b{
+    color:var(--text);
+  }
+  .summary .hit{
+    color:var(--danger);
+    font-weight:700;
+  }
+  .table-wrap{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:auto;
+    max-height:65vh;
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+    font-size:13px;
+  }
+  th, td{
+    padding:8px 12px;
+    text-align:left;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  th{
+    position:sticky;
+    top:0;
+    background:var(--panel-2);
+    color:var(--muted);
+    font-weight:600;
+    text-transform:uppercase;
+    font-size:11px;
+    letter-spacing:.05em;
+  }
+  tr.hit td{
+    background:var(--danger-bg);
+    color:#ffd0d9;
+  }
+  tr.hit td:first-child{
+    border-left:3px solid var(--danger);
+  }
+  .empty{
+    color:var(--muted);
+    font-size:13px;
+    padding:20px;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Cek Site ID Terpakai</h1>
+<p class="sub">Upload database Excel (Kolom A: Site ID, B: Nama Jalan, C: Nomor Rumah), lalu paste daftar Site ID yang sudah terpakai. Baris yang cocok akan otomatis di-highlight merah.</p>
+
+<div class="grid">
+  <div class="card">
+    <h2>1. Upload File Excel</h2>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <div class="status" id="fileStatus">Belum ada file diupload.</div>
+  </div>
+  <div class="card">
+    <h2>2. Paste Site ID Terpakai</h2>
+    <textarea id="usedIds" placeholder="Paste Site ID di sini, satu per baris (atau dipisah koma/spasi)&#10;Contoh:&#10;SITE001&#10;SITE002&#10;SITE003"></textarea>
+  </div>
+</div>
+
+<div class="toolbar">
+  <span class="summary" id="summary">Menunggu data...</span>
+  <span style="flex:1"></span>
+  <button class="secondary" id="clearBtn">Reset</button>
+  <button id="exportBtn" disabled>Export Hasil (Excel)</button>
+</div>
+
+<div class="table-wrap">
+  <table id="dataTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>Site ID</th>
+        <th>Nama Jalan</th>
+        <th>Nomor Rumah</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div class="empty" id="emptyState">Belum ada data. Upload file Excel untuk mulai.</div>
+</div>
+
+<script>
+let rawRows = []; // {siteId, jalan, rumah}
+
+const fileInput = document.getElementById('fileInput');
+const fileStatus = document.getElementById('fileStatus');
+const usedIdsEl = document.getElementById('usedIds');
+const tableBody = document.getElementById('tableBody');
+const dataTable = document.getElementById('dataTable');
+const emptyState = document.getElementById('emptyState');
+const summary = document.getElementById('summary');
+const exportBtn = document.getElementById('exportBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+function normalize(v){
+  return String(v ?? '').trim().toUpperCase();
+}
+
+function parseUsedIds(text){
+  return new Set(
+    text
+      .split(/[\n,;]+/)
+      .map(s => normalize(s))
+      .filter(s => s.length > 0)
+  );
+}
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  fileStatus.textContent = 'Membaca file...';
+
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+
+      // Deteksi apakah baris pertama header (bukan data) - cek kalau kolom A row1 bukan mirip ID biasa
+      let startRow = 0;
+      if(json.length > 0){
+        const first = json[0].map(c => normalize(c));
+        if(first[0] === 'SITE ID' || first[0] === 'SITEID' || first[1] === 'NAMA JALAN'){
+          startRow = 1;
+        }
+      }
+
+      rawRows = json.slice(startRow)
+        .filter(r => r.some(c => String(c).trim() !== ''))
+        .map(r => ({
+          siteId: r[0] ?? '',
+          jalan: r[1] ?? '',
+          rumah: r[2] ?? ''
+        }));
+
+      fileStatus.textContent = `File "${file.name}" berhasil dibaca — ${rawRows.length} baris data.`;
+      render();
+    } catch(err){
+      fileStatus.textContent = 'Gagal membaca file: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+usedIdsEl.addEventListener('input', render);
+clearBtn.addEventListener('click', () => {
+  fileInput.value = '';
+  usedIdsEl.value = '';
+  rawRows = [];
+  fileStatus.textContent = 'Belum ada file diupload.';
+  render();
+});
+
+function render(){
+  const usedSet = parseUsedIds(usedIdsEl.value);
+
+  if(rawRows.length === 0){
+    dataTable.style.display = 'none';
+    emptyState.style.display = 'block';
+    emptyState.textContent = 'Belum ada data. Upload file Excel untuk mulai.';
+    summary.textContent = 'Menunggu data...';
+    exportBtn.disabled = true;
+    return;
+  }
+
+  dataTable.style.display = 'table';
+  emptyState.style.display = 'none';
+  tableBody.innerHTML = '';
+
+  let hitCount = 0;
+
+  rawRows.forEach(row => {
+    const isHit = usedSet.has(normalize(row.siteId));
+    if(isHit) hitCount++;
+
+    const tr = document.createElement('tr');
+    if(isHit) tr.classList.add('hit');
+
+    tr.innerHTML = `
+      <td>${escapeHtml(row.siteId)}</td>
+      <td>${escapeHtml(row.jalan)}</td>
+      <td>${escapeHtml(row.rumah)}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
+
+  summary.innerHTML = `Total <b>${rawRows.length}</b> baris — <span class="hit">${hitCount} Site ID sudah terpakai</span> (dari ${usedSet.size} ID yang dicek)`;
+  exportBtn.disabled = false;
+}
+
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+exportBtn.addEventListener('click', () => {
+  const usedSet = parseUsedIds(usedIdsEl.value);
+
+  const wsData = [['Site ID', 'Nama Jalan', 'Nomor Rumah', 'Status']];
+  rawRows.forEach(row => {
+    const isHit = usedSet.has(normalize(row.siteId));
+    wsData.push([row.siteId, row.jalan, row.rumah, isHit ? 'SUDAH TERPAKAI' : '']);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Kasih warna merah ke baris yang match
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let R = 1; R <= range.e.r; R++){
+    const statusCell = ws[XLSX.utils.encode_cell({r:R, c:3})];
+    if(statusCell && statusCell.v === 'SUDAH TERPAKAI'){
+      for(let C = 0; C <= 3; C++){
+        const addr = XLSX.utils.encode_cell({r:R, c:C});
+        if(!ws[addr]) ws[addr] = {t:'s', v:''};
+        ws[addr].s = {
+          fill: { fgColor: { rgb: 'FFC7CE' } },
+          font: { color: { rgb: '9C0006' } }
+        };
+      }
+    }
+  }
+
+  ws['!cols'] = [{wch:16},{wch:30},{wch:16},{wch:18}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Hasil Cek');
+  XLSX.writeFile(wb, 'hasil-cek-site-id.xlsx', {cellStyles:true});
+});
+</script>
+
+</body>
+</html>
