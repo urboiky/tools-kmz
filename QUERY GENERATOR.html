@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KMZ → Overpass Turbo</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f7;font-family:Arial,sans-serif;color:#20252b}
+.wrap{max-width:1100px;margin:28px auto;padding:0 18px}.card{background:#fff;border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 3px 14px #0001}
+h1{margin:0 0 7px}.muted{color:#68737d}.row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+label.title{display:block;font-weight:700;margin:15px 0 7px}
+input[type=file],select,textarea{width:100%;border:1px solid #ccd3da;border-radius:8px}
+input[type=file],select{padding:10px;background:#fff}.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.check{border:1px solid #dde2e7;border-radius:8px;padding:8px;font-size:13px}.check input{margin-right:6px}
+button{border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}.primary{background:#1677ff;color:white}.secondary{background:#e9edf1}.danger{background:#fff0f0;color:#a61b1b}
+.buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.status{display:none;margin-top:12px;padding:10px;border-radius:8px;background:#eef6ff;color:#1557a6}.error{background:#fff0f0;color:#a61b1b}
+textarea{height:410px;padding:13px;font:13px Consolas,monospace;resize:vertical}.small{font-size:12px;color:#68737d}
+@media(max-width:700px){.row{grid-template-columns:1fr}.checks{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>KMZ → Overpass Turbo Query</h1>
+<div class="muted">Upload KMZ yang berisi Polygon. File diproses langsung di browser, lalu dibuatkan query Overpass dengan format <code>poly</code> yang valid.</div>
+
+<label class="title">File KMZ / KML</label>
+<input id="file" type="file" accept=".kmz,.kml">
+
+<div class="row">
+<div>
+<label class="title">Jenis jalan</label>
+<div class="checks">
+<label class="check"><input type="checkbox" value="motorway" checked>motorway</label>
+<label class="check"><input type="checkbox" value="motorway_link" checked>motorway_link</label>
+<label class="check"><input type="checkbox" value="trunk" checked>trunk</label>
+<label class="check"><input type="checkbox" value="trunk_link" checked>trunk_link</label>
+<label class="check"><input type="checkbox" value="primary" checked>primary</label>
+<label class="check"><input type="checkbox" value="primary_link" checked>primary_link</label>
+<label class="check"><input type="checkbox" value="secondary" checked>secondary</label>
+<label class="check"><input type="checkbox" value="secondary_link" checked>secondary_link</label>
+<label class="check"><input type="checkbox" value="tertiary" checked>tertiary</label>
+<label class="check"><input type="checkbox" value="tertiary_link" checked>tertiary_link</label>
+<label class="check"><input type="checkbox" value="residential" checked>residential</label>
+<label class="check"><input type="checkbox" value="unclassified" checked>unclassified</label>
+<label class="check"><input type="checkbox" value="living_street" checked>living_street</label>
+<label class="check"><input type="checkbox" value="service">service</label>
+</div>
+</div>
+
+<div>
+<label class="title">Presisi koordinat</label>
+<select id="precision">
+<option value="6">6 angka</option><option value="5" selected>5 angka — rekomendasi</option><option value="4">4 angka — lebih ringan</option>
+</select>
+
+<label class="title">Output</label>
+<select id="output">
+<option value="geom">out geom;</option><option value="center">out center;</option><option value="body">out body;</option>
+</select>
+
+<label class="title">Optimasi polygon</label>
+<div class="check"><input id="simplify" type="checkbox" checked> Hapus titik yang terlalu berdekatan</div>
+<div class="small" style="margin-top:8px">Untuk FTTH, biasanya residential tetap dipakai karena banyak jalan kampung ditandai residential di OSM. Gang service/path tidak ikut kecuali dicentang.</div>
+</div>
+</div>
+
+<div class="buttons">
+<button class="primary" onclick="generate()">Buat Query</button>
+<button class="secondary" onclick="copyQ()">Copy Query</button>
+<button class="secondary" onclick="downloadQ()">Download TXT</button>
+<button class="danger" onclick="resetAll()">Reset</button>
+</div>
+<div id="status" class="status"></div>
+</div>
+
+<div class="card">
+<strong>Hasil Query</strong>
+<div id="info" class="small" style="margin:6px 0 10px">Belum ada file diproses.</div>
+<textarea id="query" spellcheck="false"></textarea>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+function status(t,e=false){let s=$('status');s.textContent=t;s.style.display='block';s.className='status'+(e?' error':'')}
+function u16(a,o){return a[o]|a[o+1]<<8}
+function u32(a,o){return (a[o]|a[o+1]<<8|a[o+2]<<16|a[o+3]<<24)>>>0}
+
+async function inflateRaw(data){
+ if(!('DecompressionStream' in window))throw Error('Browser tidak mendukung DecompressionStream. Pakai Chrome/Edge terbaru.');
+ const ds=new DecompressionStream('deflate-raw');
+ return new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer());
+}
+async function unzipKMZ(bytes){
+ const dec=new TextDecoder(), sig=0x06054b50; let e=-1;
+ for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--)if(u32(bytes,i)===sig){e=i;break}
+ if(e<0)throw Error('File bukan KMZ/ZIP yang valid.');
+ const cdSize=u32(bytes,e+12),cdOff=u32(bytes,e+16);let p=cdOff,files=[];
+ while(p<cdOff+cdSize){
+  if(u32(bytes,p)!==0x02014b50)break;
+  let method=u16(bytes,p+10),cs=u32(bytes,p+20),nl=u16(bytes,p+28),xl=u16(bytes,p+30),cl=u16(bytes,p+32);
+  files.push({name:dec.decode(bytes.slice(p+46,p+46+nl)),method,cs,off:u32(bytes,p+42)});
+  p+=46+nl+xl+cl;
+ }
+ let out=[];
+ for(const f of files)if(/\.kml$/i.test(f.name)){
+  let lp=f.off,nl=u16(bytes,lp+26),xl=u16(bytes,lp+28),start=lp+30+nl+xl,c=bytes.slice(start,start+f.cs);
+  let d=f.method===0?c:f.method===8?await inflateRaw(c):null;
+  if(d)out.push(dec.decode(d));
+ }
+ if(!out.length)throw Error('Tidak menemukan KML di dalam KMZ.');
+ return out;
+}
+function parseKML(text){
+ const x=new DOMParser().parseFromString(text,'application/xml');
+ if(x.querySelector('parsererror'))throw Error('KML tidak valid.');
+ const nodes=[...x.getElementsByTagName('*')].filter(n=>n.localName==='coordinates'), polys=[];
+ for(const n of nodes){
+  let parent=n.parentElement;
+  if(!parent||parent.localName!=='LinearRing')continue;
+  let pts=n.textContent.trim().split(/\s+/).map(s=>{let p=s.split(',');return[+p[1],+p[0]]}).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+  if(pts.length>=3)polys.push(pts);
+ }
+ if(!polys.length)throw Error('Tidak menemukan Polygon/LinearRing.');
+ return polys;
+}
+function clean(p,prec,simp){
+ let o=[],d=simp?0.00001:0;
+ for(const x of p)if(!o.length||Math.abs(x[0]-o.at(-1)[0])>d||Math.abs(x[1]-o.at(-1)[1])>d)o.push(x);
+ if(o.length>1&&Math.abs(o[0][0]-o.at(-1)[0])<d+1e-12&&Math.abs(o[0][1]-o.at(-1)[1])<d+1e-12)o.pop();
+ return o.map(x=>[+x[0].toFixed(prec),+x[1].toFixed(prec)]);
+}
+async function generate(){
+ const f=$('file').files[0];if(!f)return status('Pilih KMZ/KML dulu.',true);
+ try{
+  status('Membaca polygon dari KMZ...');
+  let texts=/\.kml$/i.test(f.name)?[await f.text()]:await unzipKMZ(new Uint8Array(await f.arrayBuffer()));
+  let polys=texts.flatMap(parseKML),pts=clean(polys[0],+$('precision').value,$('simplify').checked);
+  let roads=[...document.querySelectorAll('.check input:checked')].map(x=>x.value);
+  if(pts.length<3)throw Error('Polygon utama tidak cukup titik.');
+  if(!roads.length)throw Error('Pilih minimal satu jenis jalan.');
+  let out=$('output').value==='geom'?'out geom;':$('output').value==='center'?'out center;':'out body;';
+  let q='[out:json][timeout:180];\n\nway\n["highway"~"'+roads.join('|')+'"]\n(poly:"'+pts.map(x=>x.join(' ')).join(' ')+'");\n\n'+out;
+  $('query').value=q;$('info').textContent=f.name+' • '+polys.length+' polygon • '+pts.length+' titik digunakan';
+  status('Berhasil. Query siap dicopy ke Overpass Turbo.');
+ }catch(e){status(e.message||String(e),true)}
+}
+async function copyQ(){let q=$('query').value;if(!q)return status('Belum ada query.',true);await navigator.clipboard.writeText(q);status('Query berhasil dicopy.')}
+function downloadQ(){let q=$('query').value;if(!q)return status('Belum ada query.',true);let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([q],{type:'text/plain'}));a.download='overpass_query.txt';a.click()}
+function resetAll(){$('file').value='';$('query').value='';$('info').textContent='Belum ada file diproses.';$('status').style.display='none'}
+</script>
+</body>
+</html>

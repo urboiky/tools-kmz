@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Road Offset — KMZ Centerline to Road Width</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#1b2420;
+    --paper:#eef1ea;
+    --panel:#ffffff;
+    --line:#0f7a4f;
+    --line-dim:#c7d2c9;
+    --accent:#e0722c;
+    --mono: 'IBM Plex Mono','SF Mono',Consolas,monospace;
+    --sans: 'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    background-image:
+      linear-gradient(var(--line-dim) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-dim) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-position: -1px -1px;
+    min-height:100vh;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:48px 24px 80px;}
+
+  header{margin-bottom:36px;}
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--line);
+    display:flex;align-items:center;gap:8px;
+    margin-bottom:10px;
+  }
+  .eyebrow::before{content:"";width:8px;height:8px;background:var(--line);display:inline-block;}
+  h1{
+    font-family:var(--mono);
+    font-size:clamp(28px,4vw,40px);
+    line-height:1.05;
+    margin:0 0 12px;
+    letter-spacing:-0.01em;
+  }
+  h1 span{color:var(--accent);}
+  .sub{
+    max-width:56ch;
+    font-size:15px;
+    line-height:1.6;
+    color:#4b564f;
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1.5px solid var(--ink);
+    box-shadow:5px 5px 0 var(--line-dim);
+    padding:28px;
+    margin-bottom:24px;
+  }
+  .panel h2{
+    font-family:var(--mono);
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    margin:0 0 18px;
+    color:#4b564f;
+    display:flex;
+    justify-content:space-between;
+  }
+  .step-num{color:var(--line);}
+
+  /* dropzone */
+  .drop{
+    border:2px dashed #9aa79c;
+    padding:32px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    position:relative;
+  }
+  .drop.drag{border-color:var(--line);background:#f2f7f2;}
+  .drop.has-file{border-style:solid;border-color:var(--line);background:#f2f7f2;}
+  .drop input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .drop-icon{font-family:var(--mono);font-size:22px;color:var(--line);margin-bottom:8px;}
+  .drop-text{font-size:14px;color:#4b564f;}
+  .drop-text b{color:var(--ink);}
+  .filename{
+    font-family:var(--mono);
+    font-size:13px;
+    margin-top:10px;
+    color:var(--line);
+    word-break:break-all;
+  }
+
+  /* offset controls */
+  .offset-row{display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap;}
+  .field{flex:1;min-width:160px;}
+  label{
+    display:block;
+    font-family:var(--mono);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:#4b564f;
+    margin-bottom:8px;
+  }
+  .num-input{
+    display:flex;
+    border:1.5px solid var(--ink);
+    background:var(--paper);
+  }
+  .num-input button{
+    width:36px;
+    border:none;
+    background:transparent;
+    font-family:var(--mono);
+    font-size:16px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .num-input button:hover{background:var(--line);color:#fff;}
+  .num-input input{
+    flex:1;
+    border:none;
+    background:transparent;
+    text-align:center;
+    font-family:var(--mono);
+    font-size:16px;
+    padding:8px 4px;
+    width:60px;
+    color:var(--ink);
+  }
+  .num-input input:focus{outline:none;}
+  .total-readout{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--line);
+    white-space:nowrap;
+    padding-bottom:10px;
+  }
+  .split-bar{
+    margin-top:14px;
+    height:10px;
+    display:flex;
+    border:1px solid var(--ink);
+    overflow:hidden;
+  }
+  .split-bar .left{background:var(--line);}
+  .split-bar .right{background:var(--accent);}
+  .split-labels{
+    display:flex;justify-content:space-between;
+    font-family:var(--mono);font-size:10px;color:#4b564f;margin-top:4px;
+  }
+
+  .run-btn{
+    width:100%;
+    padding:16px;
+    font-family:var(--mono);
+    font-size:14px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    transition:background .15s;
+  }
+  .run-btn:hover:not(:disabled){background:var(--line);}
+  .run-btn:disabled{background:#c7d2c9;color:#8a948c;cursor:not-allowed;}
+  .run-btn .arrow{transition:transform .15s;}
+  .run-btn:hover:not(:disabled) .arrow{transform:translateX(4px);}
+
+  .status{
+    font-family:var(--mono);
+    font-size:12px;
+    margin-top:14px;
+    min-height:18px;
+    color:#4b564f;
+  }
+  .status.err{color:#b3401a;}
+  .status.ok{color:var(--line);}
+
+  /* results */
+  .result{display:none;}
+  .result.show{display:block;}
+  .result-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--ink);
+    border:1.5px solid var(--ink);
+    margin-bottom:20px;
+  }
+  .stat{background:var(--panel);padding:16px;}
+  .stat .n{font-family:var(--mono);font-size:22px;color:var(--line);}
+  .stat .l{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:#4b564f;letter-spacing:.06em;margin-top:4px;}
+
+  .download-btn{
+    width:100%;
+    padding:16px;
+    font-family:var(--mono);
+    font-size:14px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    cursor:pointer;
+    text-decoration:none;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+  }
+  .download-btn:hover{background:#c45f1f;}
+
+  footer{
+    margin-top:32px;
+    font-family:var(--mono);
+    font-size:11px;
+    color:#8a948c;
+    line-height:1.7;
+  }
+
+  .spinner{
+    width:14px;height:14px;
+    border:2px solid rgba(255,255,255,.3);
+    border-top-color:currentColor;
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+    display:inline-block;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">GIS Utility</div>
+    <h1>Centerline <span>→</span> Road Width</h1>
+    <div class="sub">
+      Upload a KML or KMZ containing centerline polylines. This tool offsets each line
+      left and right to build a polygon that represents the actual road surface —
+      then generates a new file, in the same format, you can drop straight into Google Earth or QGIS.
+    </div>
+  </header>
+
+  <div class="panel">
+    <h2><span><span class="step-num">01</span> — Input file</span></h2>
+    <div class="drop" id="drop">
+      <input type="file" id="fileInput" accept=".kmz,.kml">
+      <div class="drop-icon">⤓</div>
+      <div class="drop-text"><b>Drop a .kmz or .kml file</b> or click to browse</div>
+      <div class="filename" id="filename"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span><span class="step-num">02</span> — Offset width</span></h2>
+    <div class="offset-row">
+      <div class="field">
+        <label>Left offset (m)</label>
+        <div class="num-input">
+          <button type="button" data-target="left" data-dir="-1">−</button>
+          <input type="number" id="leftOffset" value="2" min="0.1" step="0.1">
+          <button type="button" data-target="left" data-dir="1">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Right offset (m)</label>
+        <div class="num-input">
+          <button type="button" data-target="right" data-dir="-1">−</button>
+          <input type="number" id="rightOffset" value="2" min="0.1" step="0.1">
+          <button type="button" data-target="right" data-dir="1">+</button>
+        </div>
+      </div>
+      <div class="total-readout" id="totalReadout">total width: 4.0 m</div>
+    </div>
+    <div class="split-bar"><div class="left" style="flex:1"></div><div class="right" style="flex:1"></div></div>
+    <div class="split-labels"><span>left</span><span>centerline</span><span>right</span></div>
+  </div>
+
+  <div class="panel">
+    <h2><span><span class="step-num">03</span> — Generate</span></h2>
+    <button class="run-btn" id="runBtn" disabled>
+      <span id="runLabel">Select a file first</span>
+    </button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="panel result" id="resultPanel">
+    <h2><span><span class="step-num">04</span> — Result</span></h2>
+    <div class="result-grid">
+      <div class="stat"><div class="n" id="statCount">—</div><div class="l">road segments</div></div>
+      <div class="stat"><div class="n" id="statWidth">—</div><div class="l">total width (m)</div></div>
+      <div class="stat"><div class="n" id="statSize">—</div><div class="l">output size</div></div>
+    </div>
+    <a class="download-btn" id="downloadBtn" href="#" download>⤓ Download offset KMZ</a>
+  </div>
+
+  <footer>
+    Offsets are computed in a local metric projection centered on the file's
+    coordinates, with mitered corners at vertices (capped to avoid spikes on
+    sharp turns). Runs entirely in your browser — nothing is uploaded anywhere.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  const dropEl = document.getElementById('drop');
+  const fileInput = document.getElementById('fileInput');
+  const filenameEl = document.getElementById('filename');
+  const leftInput = document.getElementById('leftOffset');
+  const rightInput = document.getElementById('rightOffset');
+  const totalReadout = document.getElementById('totalReadout');
+  const runBtn = document.getElementById('runBtn');
+  const runLabel = document.getElementById('runLabel');
+  const statusEl = document.getElementById('status');
+  const resultPanel = document.getElementById('resultPanel');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const splitLeft = document.querySelector('.split-bar .left');
+  const splitRight = document.querySelector('.split-bar .right');
+
+  let currentFile = null;
+
+  function updateTotal(){
+    const l = parseFloat(leftInput.value) || 0;
+    const r = parseFloat(rightInput.value) || 0;
+    totalReadout.textContent = `total width: ${(l+r).toFixed(1)} m`;
+    const sum = l + r || 1;
+    splitLeft.style.flex = l;
+    splitRight.style.flex = r;
+    void sum;
+  }
+  leftInput.addEventListener('input', updateTotal);
+  rightInput.addEventListener('input', updateTotal);
+  updateTotal();
+
+  document.querySelectorAll('.num-input button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const target = btn.dataset.target === 'left' ? leftInput : rightInput;
+      const dir = parseFloat(btn.dataset.dir);
+      let v = parseFloat(target.value) || 0;
+      v = Math.max(0.1, v + dir * 0.5);
+      target.value = v.toFixed(1);
+      updateTotal();
+    });
+  });
+
+  function setFile(file){
+    if(!file) return;
+    const lower = file.name.toLowerCase();
+    if(!lower.endsWith('.kmz') && !lower.endsWith('.kml')){
+      showStatus('File harus berformat .kmz atau .kml', true);
+      return;
+    }
+    currentFile = file;
+    filenameEl.textContent = file.name;
+    dropEl.classList.add('has-file');
+    runBtn.disabled = false;
+    runLabel.textContent = 'Generate offset ' + (lower.endsWith('.kml') ? 'KML' : 'KMZ');
+    resultPanel.classList.remove('show');
+    showStatus('');
+  }
+
+  fileInput.addEventListener('change', e=> setFile(e.target.files[0]));
+  dropEl.addEventListener('dragover', e=>{ e.preventDefault(); dropEl.classList.add('drag'); });
+  dropEl.addEventListener('dragleave', ()=> dropEl.classList.remove('drag'));
+  dropEl.addEventListener('drop', e=>{
+    e.preventDefault();
+    dropEl.classList.remove('drag');
+    setFile(e.dataTransfer.files[0]);
+  });
+
+  function showStatus(msg, isErr){
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (isErr ? ' err' : (msg ? ' ok' : ''));
+  }
+
+  // ---------- geometry helpers ----------
+  function normalize(v){
+    const n = Math.hypot(v[0], v[1]);
+    if(n === 0) return [0,0];
+    return [v[0]/n, v[1]/n];
+  }
+  function perpLeft(d){ return [-d[1], d[0]]; }
+
+  function offsetPolyline(pts, distance, side){
+    const n = pts.length;
+    const out = [];
+    for(let i=0;i<n;i++){
+      let normal, mult = 1.0;
+      if(i === 0){
+        const d = normalize([pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]]);
+        normal = perpLeft(d);
+      } else if(i === n-1){
+        const d = normalize([pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]]);
+        normal = perpLeft(d);
+      } else {
+        const d1 = normalize([pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]]);
+        const d2 = normalize([pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]]);
+        const n1 = perpLeft(d1);
+        const n2 = perpLeft(d2);
+        let nx = n1[0]+n2[0], ny = n1[1]+n2[1];
+        normal = normalize([nx, ny]);
+        if(normal[0]===0 && normal[1]===0){
+          normal = n1;
+        } else {
+          let cosHalf = normal[0]*n1[0] + normal[1]*n1[1];
+          cosHalf = Math.max(cosHalf, 0.15);
+          mult = Math.min(1.0/cosHalf, 6.0);
+        }
+      }
+      out.push([
+        pts[i][0] + side*distance*mult*normal[0],
+        pts[i][1] + side*distance*mult*normal[1]
+      ]);
+    }
+    return out;
+  }
+
+  function esc(s){
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function processFile(file, leftM, rightM){
+    const isKml = file.name.toLowerCase().endsWith('.kml');
+    let kmlText;
+
+    if(isKml){
+      kmlText = await file.text();
+    } else {
+      const zip = await JSZip.loadAsync(file);
+      let kmlFile = null;
+      zip.forEach((path, entry)=>{
+        if(path.toLowerCase().endsWith('.kml') && !kmlFile) kmlFile = entry;
+      });
+      if(!kmlFile) throw new Error('Tidak ditemukan file .kml di dalam KMZ');
+      kmlText = await kmlFile.async('string');
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(kmlText, 'text/xml');
+    const ns = 'http://www.opengis.net/kml/2.2';
+
+    const placemarks = Array.from(doc.getElementsByTagNameNS(ns, 'Placemark'));
+    const records = [];
+    const allPoints = [];
+
+    placemarks.forEach(pm=>{
+      const nameEl = pm.getElementsByTagNameNS(ns, 'name')[0];
+      const name = nameEl ? nameEl.textContent : 'Unnamed';
+      const lsEl = pm.getElementsByTagNameNS(ns, 'LineString')[0];
+      if(!lsEl) return;
+      const coordEl = lsEl.getElementsByTagNameNS(ns, 'coordinates')[0];
+      if(!coordEl || !coordEl.textContent.trim()) return;
+      const raw = coordEl.textContent.trim().split(/\s+/);
+      const coords = [];
+      raw.forEach(c=>{
+        const parts = c.split(',');
+        const lon = parseFloat(parts[0]);
+        const lat = parseFloat(parts[1]);
+        if(!isNaN(lon) && !isNaN(lat)){
+          coords.push([lon, lat]);
+          allPoints.push([lon, lat]);
+        }
+      });
+      if(coords.length >= 2) records.push({name, coords});
+    });
+
+    if(records.length === 0) throw new Error('Tidak ditemukan LineString yang valid di dalam KML');
+
+    let lon0 = 0, lat0 = 0;
+    allPoints.forEach(p=>{ lon0 += p[0]; lat0 += p[1]; });
+    lon0 /= allPoints.length; lat0 /= allPoints.length;
+
+    const R = 6378137.0;
+    const lat0rad = lat0 * Math.PI/180;
+    const cosLat0 = Math.cos(lat0rad);
+
+    function toXY(lon, lat){
+      const x = (lon - lon0) * Math.PI/180 * R * cosLat0;
+      const y = (lat - lat0) * Math.PI/180 * R;
+      return [x, y];
+    }
+    function toLonLat(x, y){
+      const lon = lon0 + (x / (R * cosLat0)) * 180/Math.PI;
+      const lat = lat0 + (y / R) * 180/Math.PI;
+      return [lon, lat];
+    }
+
+    const polygons = [];
+    records.forEach(rec=>{
+      const xy = rec.coords.map(c => toXY(c[0], c[1]));
+      const left = offsetPolyline(xy, leftM, 1);
+      const right = offsetPolyline(xy, rightM, -1);
+      const ring = left.concat(right.slice().reverse());
+      ring.push(left[0]);
+      const ringLonLat = ring.map(p => toLonLat(p[0], p[1]));
+      polygons.push({name: rec.name, ring: ringLonLat});
+    });
+
+    const totalWidth = leftM + rightM;
+    const header = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+\t<name>ROAD_OFFSET_${totalWidth.toFixed(1)}M</name>
+\t<Style id="roadPoly">
+\t\t<LineStyle><color>ff0080ff</color><width>1.5</width></LineStyle>
+\t\t<PolyStyle><color>7f0080ff</color><outline>1</outline></PolyStyle>
+\t</Style>
+`;
+    const footer = `</Document>\n</kml>\n`;
+
+    let body = '';
+    polygons.forEach(p=>{
+      const coordStr = p.ring.map(c => `${c[0].toFixed(8)},${c[1].toFixed(8)},0`).join(' ');
+      body += `\t<Placemark>
+\t\t<name>${esc(p.name)}</name>
+\t\t<styleUrl>#roadPoly</styleUrl>
+\t\t<Polygon>
+\t\t\t<extrude>0</extrude>
+\t\t\t<altitudeMode>clampToGround</altitudeMode>
+\t\t\t<outerBoundaryIs>
+\t\t\t\t<LinearRing>
+\t\t\t\t\t<coordinates>${coordStr}</coordinates>
+\t\t\t\t</LinearRing>
+\t\t\t</outerBoundaryIs>
+\t\t</Polygon>
+\t</Placemark>
+`;
+    });
+
+    const fullKml = header + body + footer;
+
+    let blob;
+    if(isKml){
+      blob = new Blob([fullKml], {type:'application/vnd.google-earth.kml+xml'});
+    } else {
+      const outZip = new JSZip();
+      outZip.file('doc.kml', fullKml);
+      blob = await outZip.generateAsync({type:'blob', compression:'DEFLATE'});
+    }
+
+    return {blob, count: polygons.length, totalWidth, isKml};
+  }
+
+  runBtn.addEventListener('click', async ()=>{
+    if(!currentFile) return;
+    const leftM = parseFloat(leftInput.value) || 2;
+    const rightM = parseFloat(rightInput.value) || 2;
+
+    runBtn.disabled = true;
+    runLabel.innerHTML = '<span class="spinner"></span> Processing…';
+    showStatus('');
+    resultPanel.classList.remove('show');
+
+    const wasKml = currentFile.name.toLowerCase().endsWith('.kml');
+
+    try{
+      const result = await processFile(currentFile, leftM, rightM);
+      const sizeKb = (result.blob.size / 1024).toFixed(1);
+
+      document.getElementById('statCount').textContent = result.count;
+      document.getElementById('statWidth').textContent = result.totalWidth.toFixed(1);
+      document.getElementById('statSize').textContent = sizeKb + ' KB';
+
+      const url = URL.createObjectURL(result.blob);
+      const baseName = currentFile.name.replace(/\.(kmz|kml)$/i, '');
+      const outExt = result.isKml ? 'kml' : 'kmz';
+      downloadBtn.href = url;
+      downloadBtn.download = `${baseName}_OFFSET_${result.totalWidth.toFixed(1)}M.${outExt}`;
+      downloadBtn.innerHTML = `⤓ Download offset ${outExt.toUpperCase()}`;
+
+      resultPanel.classList.add('show');
+      showStatus(`Berhasil: ${result.count} ruas jalan diproses.`, false);
+    } catch(err){
+      showStatus('Gagal: ' + err.message, true);
+    } finally {
+      runBtn.disabled = false;
+      runLabel.textContent = 'Generate offset ' + (wasKml ? 'KML' : 'KMZ');
+    }
+  });
+})();
+</script>
+</body>
+</html>
