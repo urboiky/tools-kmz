@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cek Generate Nomor Rumah</title>
+<style>
+body{font-family:Arial;background:#f4f4f4;padding:20px}
+.container{max-width:1000px;margin:auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px #ccc}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+textarea{width:100%;height:220px;padding:10px;box-sizing:border-box}
+button{padding:12px 20px;margin:15px 5px 15px 0;background:#0066ff;color:white;border:0;border-radius:5px;cursor:pointer}
+button:hover{opacity:.8}
+table{width:100%;border-collapse:collapse;margin-top:15px}
+th,td{border:1px solid #ccc;padding:8px}
+.duplicate{background:#fff3a3}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.result-grid textarea{height:220px;background:#eee}
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>Generator Nomor Rumah</h2>
+
+<div class="grid">
+<div>
+<label><b>Input Nama Jalan</b></label>
+<textarea id="jalan" placeholder="JL. METEOR
+JL. METEOR
+JL. BINTANG"></textarea>
+</div>
+
+<div>
+<label><b>Input Nomor Rumah</b></label>
+<textarea id="nomor" placeholder="02
+02
+05"></textarea>
+</div>
+</div>
+
+<button onclick="cek()">CEK DUPLIKAT</button>
+<button onclick="generate()">GENERATE</button>
+
+<div id="cekArea"></div>
+
+<h3>Hasil Generate</h3>
+<div class="result-grid">
+<div>
+<label><b>Nama Jalan Hasil</b></label>
+<textarea id="hasilJalan" readonly></textarea>
+</div>
+<div>
+<label><b>Nomor Rumah Hasil</b></label>
+<textarea id="hasilNomor" readonly></textarea>
+</div>
+</div>
+
+</div>
+
+<script>
+
+let data=[];
+
+function ambilData(){
+    data=[];
+    let jalan=document.getElementById("jalan").value.trim().split("\n");
+    let nomor=document.getElementById("nomor").value.trim().split("\n");
+
+    for(let i=0;i<Math.min(jalan.length,nomor.length);i++){
+        if(jalan[i].trim() && nomor[i].trim()){
+            data.push({
+                jalan:jalan[i].trim(),
+                nomor:nomor[i].trim()
+            });
+        }
+    }
+}
+
+function cek(){
+    ambilData();
+
+    let count={};
+
+    data.forEach(x=>{
+        let key=x.jalan+"|"+x.nomor;
+        count[key]=(count[key]||0)+1;
+    });
+
+    let html="<table><tr><th>Nama Jalan</th><th>Nomor Rumah</th><th>Status</th></tr>";
+
+    data.forEach(x=>{
+        let key=x.jalan+"|"+x.nomor;
+        let dup=count[key]>1;
+
+        html+=`
+        <tr class="${dup?'duplicate':''}">
+        <td>${x.jalan}</td>
+        <td>${x.nomor}</td>
+        <td>${dup?'Duplikat '+count[key]+'x':'Normal'}</td>
+        </tr>`;
+    });
+
+    html+="</table>";
+
+    document.getElementById("cekArea").innerHTML=html;
+}
+
+function generate(){
+
+    ambilData();
+
+    let posisi={};
+    let jalanHasil=[];
+    let nomorHasil=[];
+
+    data.forEach(x=>{
+
+        let key=x.jalan+"|"+x.nomor;
+
+        if(posisi[key]===undefined){
+            posisi[key]=0;
+        }
+
+        jalanHasil.push(x.jalan);
+        nomorHasil.push(
+            x.nomor+"*".repeat(posisi[key])
+        );
+
+        posisi[key]++;
+    });
+
+    document.getElementById("hasilJalan").value=jalanHasil.join("\n");
+    document.getElementById("hasilNomor").value=nomorHasil.join("\n");
+
+    // sembunyikan tabel cek setelah generate
+    document.getElementById("cekArea").innerHTML="";
+}
+
+</script>
+
+</body>
+</html>
